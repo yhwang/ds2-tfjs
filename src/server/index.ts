@@ -2,7 +2,7 @@ import * as express from 'express';
 import * as path from 'path';
 
 const app = express();
-const port = 3000; // default port to listen
+const port = process.env.PORT || 3000; // default port to listen
 
 app.use(express.static(path.join(__dirname, '../', 'public')))
 
