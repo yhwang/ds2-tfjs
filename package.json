@@ -4,11 +4,13 @@
   "description": "",
   "main": "dist/index.js",
   "dependencies": {
-    "@tensorflow/tfjs": "^1.0.0",
+    "@tensorflow/tfjs": "^1.1.2",
     "express": "^4.16.1"
   },
   "devDependencies": {
     "@types/express": "^4.16.1",
+    "concurrently": "^4.1.0",
+    "nodemon": "^1.19.1",
     "rollup": "^1.12.3",
     "rollup-plugin-node-resolve": "^5.0.0",
     "rollup-plugin-typescript2": "^0.21.1",
@@ -16,7 +18,10 @@
   },
   "scripts": {
     "build": "tsc && rollup -c",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "watch:server": "tsc -w",
+    "watch:js": "rollup --config rollup.config.js --watch",
+    "dev": "concurrently --names \"serverjs,clientjs,server\" -c \"bgBlue.bold,bgMagenta.bold\" npm:watch:server npm:watch:js \"nodemon dist/index.js\""
   },
   "repository": {
     "type": "git",

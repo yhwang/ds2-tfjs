@@ -1,9 +1,49 @@
 <html>
     <head>
-        <title>DeepSpeech</title>
+        <meta charset="utf-8" />
+        <link rel="shortcut icon" href="/favicon.ico" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+        <meta name="theme-color" content="#000000" />
+        <link rel="stylesheet" type="text/css" 
+            href="https://fonts.googleapis.com/css?family=IBM+Plex+Sans:300,400,600,700,800"
+        />
+        <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+            rel="stylesheet" crossorigin="anonymous"
+            integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T"
+        />
+        <link rel="manifest" href="/manifest.json">
+        <link href="css/main.css" rel="stylesheet"/>
         <script src="js/main.js"></script>
+        <title>DeepSpeech</title>
     </head>
     <body onload="pageLoaded()">
-        DeepSpeech
+        <div class="container">
+            <div class="page-header">
+                    <h1>Speech to text in browser</h1>
+                    <p class="lead">Run the DeepSpeech2 model by using Tensorflow.js in your browser</p>
+            </div>
+            <div class="row">
+                <div class="col-gl transcribe">
+                    <div class="input-group">
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" id="audio-file" accept=".wav,audio/*"
+                                aria-describedby="audio-file">
+                            <label class="custom-file-label" for="audio-file">Choose an audio wav file</label>
+                        </div>
+                        <div class="input-group-append">
+                            <button class="btn btn-outline-secondary" type="button" id="transcribe" onclick="transcribe()">Transcribe</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-gl-6">
+                    <p>
+                        <label for="status">status:</label>
+                        <output name="status" id="status"></output>
+                    </p>
+                </div>
+            </div>
+        </div>
     </body>
 </html>
