@@ -1,73 +1,72 @@
 <html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <link rel="shortcut icon" href="/favicon.ico" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-        <meta name="theme-color" content="#000000" />
-        <link rel="stylesheet" type="text/css" 
-            href="https://fonts.googleapis.com/css?family=IBM+Plex+Sans:300,400,600,700,800"
-        />
-        <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
-            rel="stylesheet" crossorigin="anonymous"
-            integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T"
-        />
-        <link rel="manifest" href="/manifest.json">
-        <link href="css/main.css" rel="stylesheet"/>
-        <script src="js/main.js"></script>
-        <title>DeepSpeech</title>
-    </head>
-    <body onload="pageLoaded()">
-        <div class="container-fluid tcenter">
-            <div class="page-header">
-                    <h1>Speech to text in browser</h1>
-                    <p class="lead">Run the DeepSpeech2 model by using Tensorflow.js in your browser</p>
-            </div>
-            <div class="container-fluid tcenter">
-                <div class="row justify-content-center">
-                    <div class="col-sm-4">
-                        <div class="input-group">
-                            <div class="custom-file">
-                                <input type="file" class="custom-file-input" id="audio-file" accept=".wav,audio/*"
-                                    aria-describedby="audio-file" onchange="fileSelected(this)" disabled="true">
-                                <label class="custom-file-label" for="audio-file">Choose an audio wav file</label>
-                            </div>
-                            <div class="input-group-append">
-                                <button class="btn btn-primary" type="button" id="transcribe" onclick="transcribe(this)" disabled="true">
-                                    Trainscribe
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="row bottom-padding justify-content-center">
-                    <div class="col-sm-4">
-                        <div class="input-group-append" id="playerDiv" style="display: none;">
-                            <audio controls id="player">
-                                <source type="audio/wav">
-                                Your browser does not support the audio element.
-                            </audio> 
-                        </div>
-                    </div>
-                </div>
-                <div class="row bottom-padding justify-content-center">
-                    <div class="col-sm-4">
-                        <span class="badge badge-pill badge-success" id="status">status:</span>
-                    </div>
-                </div>
-                <div class="row justify-content-center">
-                    <div class="col-sm-4">
-                        <div class="card text-center">
-                            <div class="card-header ">
-                                <label>Transcription</label>
-                            </div>
 
-                            <div class="card-body">
-                                <p class="card-text" id="transcription"></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<head>
+  <meta charset="utf-8" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+  <meta name="theme-color" content="#000000" />
+  <link rel="stylesheet" type="text/css"
+      href="https://fonts.googleapis.com/css?family=IBM+Plex+Sans:300,400,600,700,800" />
+  <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet"
+      crossorigin="anonymous" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" />
+  <link rel="manifest" href="/manifest.json">
+  <link href="css/main.css" rel="stylesheet" />
+  <script src="js/main.js"></script>
+  <title>DeepSpeech</title>
+</head>
+
+<body onload="pageLoaded()">
+  <div class="container-fluid tcenter">
+    <div class="page-header">
+      <h1>Speech to Text in Browser</h1>
+      <p class="lead">Run the DeepSpeech2 model by using Tensorflow.js in your browser</p>
+    </div>
+    <div class="container-fluid tcenter">
+      <div class="row justify-content-center">
+        <div class="col-sm-4">
+          <div class="input-group">
+            <div class="custom-file">
+              <input type="file" class="custom-file-input" id="audio-file" accept=".wav,audio/*"
+                aria-describedby="audio-file" onchange="fileSelected(this)" disabled="true">
+              <label class="custom-file-label" for="audio-file" id="fileName">Choose an audio wav file</label>
             </div>
+            <div class="input-group-append">
+              <button class="btn btn-primary" type="button" id="transcribe" onclick="transcribe(this)" disabled="true">
+                Trainscribe
+              </button>
+            </div>
+          </div>
         </div>
-    </body>
+      </div>
+      <div class="row bottom-padding justify-content-center">
+        <div class="col-sm-4">
+          <div class="input-group-append" id="playerDiv" style="display: none;">
+            <audio controls id="player">
+              <source type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+          </div>
+        </div>
+      </div>
+      <div class="row bottom-padding justify-content-center">
+        <div class="col-sm-4">
+          <span class="badge badge-pill badge-success" id="status">status:</span>
+        </div>
+      </div>
+      <div class="row justify-content-center">
+        <div class="col-sm-4">
+          <div class="card text-center">
+            <div class="card-header ">
+              <label>Transcription</label>
+            </div>
+            <div class="card-body">
+              <p class="card-text" id="transcription"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+
 </html>
