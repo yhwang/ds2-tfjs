@@ -1,3 +1,7 @@
-.transcribe {
+.bottom-padding {
     margin-bottom: +20px !important;
+}
+
+.tcenter {
+    text-align: center;
 }
