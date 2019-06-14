@@ -201,6 +201,7 @@ class UI {
   status: HTMLLabelElement;
   transcription: HTMLLabelElement;
   transcribeBtn: HTMLButtonElement;
+  fileName: HTMLLabelElement;
 
   constructor() {
     this.audioSelector = 
@@ -212,6 +213,7 @@ class UI {
     this.playerDiv = document.getElementById('playerDiv') as HTMLDivElement;
     this.transcribeBtn =
         document.getElementById('transcribe') as HTMLButtonElement;
+    this.fileName = document.getElementById('fileName') as HTMLLabelElement;
   }
 
   enable(elem: HTMLElement) {
@@ -326,6 +328,7 @@ function updateTranscription(msg: string) {
 
 function fileSelected(element: HTMLInputElement) {
   if (element.files.length > 0) {
+    ui.replaceText(ui.fileName, ui.audioSelector.files[0].name);
     ui.enable(ui.transcribeBtn);
   }
 }
