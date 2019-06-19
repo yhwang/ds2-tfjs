@@ -6,6 +6,7 @@ declare global {
     pageLoaded?: Function;
     transcribe?: Function;
     fileSelected?: Function;
+    record?: Function;
   }
 }
 
@@ -19,8 +20,8 @@ class DeepSpeech {
   model: tf.GraphModel;
 
   // load the tfjs-graph model
-  async load() {
-    this.model = await tf.loadGraphModel('/model/model.json');
+  async load(loc: string) {
+    this.model = await tf.loadGraphModel(loc);
   }
 
   // CTC greedy decoder implementation
@@ -61,15 +62,18 @@ class DeepSpeech {
    * model inference, CTC greedy decoding and return
    * the transcription
    */
-  async transcribeFile(file: File, cb?: Function) {
+  async transcribeFile(file: File|Blob, cb?: Function) {
     // using the sampling rate while training
     const audioProcessor = new AudioProcessor(SAMPLE_RATE);
     let feature: tf.Tensor;
     let raw: ArrayBuffer;
+
     await measureElapsedTime('read file to ArrayBuffer', async () => {
       raw = await audioProcessor.read(file);
     });
-    cb(raw);
+    if (cb) {
+      cb(raw);
+    }
     await measureElapsedTime('wav decode and stft', async () => {
       const rawWav = await audioProcessor.decode(raw);
       feature = audioProcessor.stft(rawWav);
@@ -103,7 +107,7 @@ class AudioProcessor {
     this.sampleRate = sampleRate;
   }
 
-  read(file: File): Promise<ArrayBuffer> {
+  read(file: File|Blob): Promise<ArrayBuffer> {
     const fr = new FileReader();
     const rev = new Promise<ArrayBuffer>((resolve, reject) => {
       fr.onload = (ev: ProgressEvent) => {
@@ -202,6 +206,10 @@ class UI {
   transcription: HTMLLabelElement;
   transcribeBtn: HTMLButtonElement;
   fileName: HTMLLabelElement;
+  recordBtn: HTMLButtonElement;
+  recordDiv: HTMLDivElement;
+  mediaStream: MediaStream;
+  recorder: MediaRecorder;
 
   constructor() {
     this.audioSelector = 
@@ -214,6 +222,10 @@ class UI {
     this.transcribeBtn =
         document.getElementById('transcribe') as HTMLButtonElement;
     this.fileName = document.getElementById('fileName') as HTMLLabelElement;
+    this.recordBtn = document.getElementById('record') as HTMLButtonElement;
+    this.recordDiv = document.getElementById('recordDiv') as HTMLDivElement;
+    this.mediaStream = null;
+    this.recorder = null;
   }
 
   enable(elem: HTMLElement) {
@@ -258,8 +270,14 @@ const ds = new DeepSpeech();
 let ui: UI;
 
 async function pageLoaded() {
-  let start = Date.now();
   ui = new UI();
+  if (hasGetUserMedia()) {
+    navigator.mediaDevices.getUserMedia({audio: true})
+        .then((stream) => {
+          ui.display(ui.recordDiv);
+          ui.mediaStream = stream;
+        });
+  }
   await measureElapsedTime('loading model', async () => {
     await loadModel();
   });
@@ -276,7 +294,7 @@ async function measureElapsedTime(task: string, func: Function) {
 // Load the model and update UI
 async function loadModel() {
   updateStatus('loading DS2 model.....');
-  await ds.load();
+  await ds.load('/tf-models-ds2-tfjs-3layer-wer38/model.json');
   updateStatus('DS2 model loaded!');
 }
 
@@ -298,11 +316,6 @@ async function transcribe(element: HTMLInputElement) {
   ui.enable(ui.audioSelector);
   ui.enable(element);
 }
-// async function transcribe(url: string) {
-//   updateStatus('transcribe.....');
-//   let transcription = await ds.transcribe(url);
-//   updateStatus(`transcription: ${transcription}`);
-// }
 
 function prepareInput(url: string): Promise<tf.Tensor> {
   return new Promise((resolve, reject) => {
@@ -332,7 +345,54 @@ function fileSelected(element: HTMLInputElement) {
     ui.enable(ui.transcribeBtn);
   }
 }
+
+function hasGetUserMedia() {
+  return !!(navigator.mediaDevices &&
+    navigator.mediaDevices.getUserMedia);
+}
+
+function record(element: HTMLButtonElement) {
+  if (ui.mediaStream === null) return;
+
+  if (ui.recorder === null) {
+    ui.recorder = new MediaRecorder(ui.mediaStream);
+    ui.recorder.ondataavailable = function(e: MediaRecorderDataAvailableEvent) {
+      ui.player.src = URL.createObjectURL(e.data);
+      ui.player.load();
+      ui.display(ui.playerDiv);
+      transcribeRecording(e.data);
+      ui.disable(ui.recordBtn);
+    };
+  }
+
+  if (ui.recorder.state === 'inactive') {
+    //start recording
+    ui.recorder.start();
+    updateStatus('recording now.......');
+  } else {
+    //stop recording
+    ui.recorder.stop();
+    updateStatus('stop recording and start to transcribe....');
+  }
+}
+
+async function transcribeRecording(recording: Blob) {
+  ui.disable(ui.audioSelector);
+  ui.disable(ui.transcribeBtn);
+  updateTranscription('');
+  ui.addSpinner(ui.transcribeBtn, 'Transcribe...');
+  await measureElapsedTime('transcribe', async () => {
+    let transcription = await ds.transcribeFile(recording);
+        updateTranscription(transcription);
+  });
+  ui.replaceText(ui.transcribeBtn, 'Transcribe');
+  ui.enable(ui.audioSelector);
+  ui.enable(ui.recordBtn);
+  updateStatus('done');
+}
+
 // attach functions to window object to prevent the pruning
 window.pageLoaded = pageLoaded;
 window.transcribe = transcribe;
 window.fileSelected = fileSelected;
+window.record = record;
