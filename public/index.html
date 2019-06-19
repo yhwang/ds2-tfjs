@@ -9,6 +9,12 @@
       href="https://fonts.googleapis.com/css?family=IBM+Plex+Sans:300,400,600,700,800" />
   <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet"
       crossorigin="anonymous" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" />
+
+  <link href="https://use.fontawesome.com/releases/v5.7.0/css/all.css"
+      integrity="sha384-lZN37f5QGtY3VHgisS14W3ExzMWZxybE1SJSEsQp9S+oqd12jhcu+A56Ebc1zFSJ"
+      rel="stylesheet"
+      crossorigin="anonymous">
+
   <link rel="manifest" href="/manifest.json">
   <link href="css/main.css" rel="stylesheet" />
   <script src="js/main.js"></script>
@@ -16,19 +22,22 @@
 </head>
 
 <body onload="pageLoaded()">
-  <div class="container-fluid tcenter">
+  <div class="container-fluid text-center">
     <div class="page-header">
       <h1>Speech to Text in Browser</h1>
       <p class="lead">Run the DeepSpeech2 model by using Tensorflow.js in your browser</p>
     </div>
-    <div class="container-fluid tcenter">
+    <div class="container-fluid text-center">
       <div class="row justify-content-center">
         <div class="col-sm-4">
           <div class="input-group">
             <div class="custom-file">
               <input type="file" class="custom-file-input" id="audio-file" accept=".wav,audio/*"
                 aria-describedby="audio-file" onchange="fileSelected(this)" disabled="true">
-              <label class="custom-file-label" for="audio-file" id="fileName">Choose an audio wav file</label>
+              <label class="custom-file-label text-left" for="audio-file" id="fileName">Choose an audio wav file</label>
+            </div>
+            <div class="input-group-append" style="display:none" id="recordDiv">
+              <button type="button" class="btn btn-outline-secondary" id="record" onclick="record(this);"><i class="fas fa-microphone mid-icon"></i></button>
             </div>
             <div class="input-group-append">
               <button class="btn btn-primary" type="button" id="transcribe" onclick="transcribe(this)" disabled="true">
@@ -38,9 +47,9 @@
           </div>
         </div>
       </div>
-      <div class="row bottom-padding justify-content-center">
+      <div class="row pb-3 justify-content-center">
         <div class="col-sm-4">
-          <div class="input-group-append" id="playerDiv" style="display: none;">
+          <div id="playerDiv" style="display: none;">
             <audio controls id="player">
               <source type="audio/wav">
               Your browser does not support the audio element.
@@ -48,7 +57,7 @@
           </div>
         </div>
       </div>
-      <div class="row bottom-padding justify-content-center">
+      <div class="row pb-3 justify-content-center">
         <div class="col-sm-4">
           <span class="badge badge-pill badge-success" id="status">status:</span>
         </div>

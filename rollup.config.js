@@ -11,7 +11,15 @@ export default {
     },
   ],
   plugins: [
-    typescript({tsconfigOverride: {compilerOptions: {module: 'ES2015'}}}),
     node(),
+    typescript({
+        clean: true,
+        tsconfigOverride: {
+          compilerOptions: {
+            module: 'ES2015'
+          },
+          include: ['src/js/**/*']
+        }
+    }),
   ],
 }
