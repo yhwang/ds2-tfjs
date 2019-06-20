@@ -210,6 +210,8 @@ class UI {
   recordDiv: HTMLDivElement;
   mediaStream: MediaStream;
   recorder: MediaRecorder;
+  microphoneIcon: HTMLElement;
+  microphoneSlashIcon: HTMLElement;
 
   constructor() {
     this.audioSelector = 
@@ -226,6 +228,10 @@ class UI {
     this.recordDiv = document.getElementById('recordDiv') as HTMLDivElement;
     this.mediaStream = null;
     this.recorder = null;
+    this.microphoneIcon = document.createElement('i');
+    this.microphoneIcon.setAttribute('class', 'fa fa-microphone-alt fa-fw text-danger mid-icon');
+    this.microphoneSlashIcon = document.createElement('i');
+    this.microphoneSlashIcon.setAttribute('class', 'far fa-stop-circle fa-fw text-danger mid-icon px-1');
   }
 
   enable(elem: HTMLElement) {
@@ -264,6 +270,13 @@ class UI {
     }
     elem.appendChild(document.createTextNode(label));
   }
+
+  replaceChild(elem: HTMLElement, child: HTMLElement) {
+    while (elem.firstChild) {
+      elem.removeChild(elem.firstChild);
+    }
+    elem.appendChild(child);
+  }
 }
 
 const ds = new DeepSpeech();
@@ -294,7 +307,7 @@ async function measureElapsedTime(task: string, func: Function) {
 // Load the model and update UI
 async function loadModel() {
   updateStatus('loading DS2 model.....');
-  await ds.load('/tf-models-ds2-tfjs-3layer-wer38/model.json');
+  await ds.load('/model/model.json');
   updateStatus('DS2 model loaded!');
 }
 
@@ -369,9 +382,11 @@ function record(element: HTMLButtonElement) {
     //start recording
     ui.recorder.start();
     updateStatus('recording now.......');
+    ui.replaceChild(ui.recordBtn, ui.microphoneSlashIcon);
   } else {
     //stop recording
     ui.recorder.stop();
+    ui.replaceChild(ui.recordBtn, ui.microphoneIcon);
     updateStatus('stop recording and start to transcribe....');
   }
 }
