@@ -23,7 +23,7 @@
     "watch:server": "tsc -w",
     "watch:js": "rollup --config rollup.config.js --watch",
     "dev": "concurrently --names \"serverjs,clientjs,server\" -c \"bgBlue.bold,bgMagenta.bold\" npm:watch:server npm:watch:js \"nodemon dist/index.js\"",
-    "lint": "tslint -p ."
+    "lint": "tslint -p tslint-tsconfig.json -c tslint.json src/**/*.ts"
   },
   "repository": {
     "type": "git",

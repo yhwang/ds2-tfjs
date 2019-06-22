@@ -17,12 +17,12 @@ function assertEqual(actual: number, expected: number) {
 
 function assert(cond: boolean, msg?: string) {
   if (!cond) {
-    throw Error(msg || "assert failed");
+    throw Error(msg || 'assert failed');
   }
 }
 
 function dataViewToAscii(dv: DataView): string {
-  let out = "";
+  let out = '';
   for (let i = 0; i < dv.byteLength; i++) {
     const val = dv.getUint8(i);
     if (val === 0) {
@@ -43,14 +43,14 @@ export function parse(ab: ArrayBuffer): tf.Tensor {
   const byte0 = view.getUint8(pos++);
   const magicStr = dataViewToAscii(new DataView(ab, pos, 5));
   pos += 5;
-  if (byte0 !== 0x93 || magicStr !== "NUMPY") {
-    throw Error("Not a numpy file.");
+  if (byte0 !== 0x93 || magicStr !== 'NUMPY') {
+    throw Error('Not a numpy file.');
   }
 
   // Parse the version
-  const version = [view.getUint8(pos++), view.getUint8(pos++)].join(".");
-  if (version !== "1.0") {
-    throw Error("Unsupported version.");
+  const version = [view.getUint8(pos++), view.getUint8(pos++)].join('.');
+  if (version !== '1.0') {
+    throw Error('Unsupported version.');
   }
 
   // Parse the header length.
@@ -64,44 +64,44 @@ export function parse(ab: ArrayBuffer): tf.Tensor {
   pos += headerLen;
   const bytesLeft = view.byteLength - pos;
   const headerJson = headerPy
-    .replace("True", "true")
-    .replace("False", "false")
+    .replace('True', 'true')
+    .replace('False', 'false')
     .replace(/'/g, `"`)
-    .replace(/,\s*}/, " }")
-    .replace(/,?\)/, "]")
-    .replace("(", "[");
+    .replace(/,\s*}/, ' }')
+    .replace(/,?\)/, ']')
+    .replace('(', '[');
   const header = JSON.parse(headerJson);
   if (header.fortran_order) {
-    throw Error("NPY parse error. Implement me.");
+    throw Error('NPY parse error. Implement me.');
   }
 
   // Finally parse the actual data.
   const size = numEls(header.shape);
-  if (header["descr"] === "<f8") {
+  if (header['descr'] === '<f8') {
     // 8 byte float. float64.
     assertEqual(bytesLeft, size * 8);
     const s = ab.slice(pos, pos + size * 8);
     const ta = new Float32Array(new Float64Array(s));
-    return tf.tensor(ta, header.shape, "float32");
-  } else if (header["descr"] === "<f4") {
+    return tf.tensor(ta, header.shape, 'float32');
+  } else if (header['descr'] === '<f4') {
     // 4 byte float. float32.
     assertEqual(bytesLeft, size * 4);
     const s = ab.slice(pos, pos + size * 4);
     const ta = new Float32Array(s);
-    return tf.tensor(ta, header.shape, "float32");
-  } else if (header["descr"] === "<i8") {
+    return tf.tensor(ta, header.shape, 'float32');
+  } else if (header['descr'] === '<i8') {
     // 8 byte int. int64.
     assertEqual(bytesLeft, size * 8);
     const s = ab.slice(pos, pos + size * 8);
     const ta = new Int32Array(s).filter((val, i) => i % 2 === 0);
-    return tf.tensor(ta, header.shape, "int32");
-  } else if (header["descr"] === "|u1") {
+    return tf.tensor(ta, header.shape, 'int32');
+  } else if (header['descr'] === '|u1') {
     // uint8.
     assertEqual(bytesLeft, size);
     const s = ab.slice(pos, pos + size);
     const ta = new Uint8Array(s);
-    return tf.tensor(ta, header.shape, "int32"); // FIXME should be "uint8"
+    return tf.tensor(ta, header.shape, 'int32'); // FIXME should be "uint8"
   } else {
-    throw Error(`Unknown dtype "${header["descr"]}". Implement me.`);
+    throw Error(`Unknown dtype "${header['descr']}". Implement me.`);
   }
 }

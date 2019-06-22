@@ -16,7 +16,6 @@ interface MediaRecorderEventMap {
   'warning': MediaRecorderErrorEvent ;
 }
 
-
 declare class MediaRecorder extends EventTarget {
 
   readonly mimeType: string;
@@ -41,8 +40,20 @@ declare class MediaRecorder extends EventTarget {
   isTypeSupported(type: string): boolean;
   requestData(): void;
 
-  addEventListener<K extends keyof MediaRecorderEventMap>(type: K, listener: (this: MediaStream, ev: MediaRecorderEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
-  removeEventListener<K extends keyof MediaRecorderEventMap>(type: K, listener: (this: MediaStream, ev: MediaRecorderEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
-  removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
+  addEventListener<K extends keyof MediaRecorderEventMap>(
+      type: K,
+      listener: (this: MediaStream, ev: MediaRecorderEventMap[K]) => void,
+      options?: boolean | AddEventListenerOptions): void;
+  addEventListener(
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions): void;
+  removeEventListener<K extends keyof MediaRecorderEventMap>(
+      type: K,
+      listener: (this: MediaStream, ev: MediaRecorderEventMap[K]) => void,
+      options?: boolean | EventListenerOptions): void;
+  removeEventListener(
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | EventListenerOptions): void;
 }
