@@ -1,5 +1,7 @@
 import * as tf from '@tensorflow/tfjs';
 import { parse } from './npy';
+import { beamSearch } from './beam_search';
+import { BLANK_INDEX, CHAR_MAP } from './constants';
 
 declare global {
   interface Window {
@@ -10,8 +12,6 @@ declare global {
   }
 }
 
-const BLANK_INDEX = 28;
-const CHAR_MAP = ' abcdefghijklmnopqrstuvwxyz\'-';
 const SAMPLE_RATE = 16000;
 const WINDOW_SIZE = 20; // 20 mS
 const STRIDE_SIZE = 10; // 10 mS
@@ -89,11 +89,17 @@ class DeepSpeech {
     const pred: tf.Tensor[] = await this.model.executeAsync(
       {'features': feature}) as tf.Tensor[];
     // pred[0] == argmax of pred[1] against axes=2
-    // so directly use pred[0] and cleanup pred[1]
     const t = tf.tidy(() => {
       return pred[0].squeeze([0]);
     });
+    const squeezed = pred[1].squeeze();
     pred[1].dispose();
+    const squeezedData = squeezed.arraySync() as number[][];
+    const results = beamSearch(squeezedData, 5);
+    results.forEach((r) => {
+      console.log(r.toString());
+    });
+    squeezed.dispose();
     const argmax = t.arraySync() as number[];
     t.dispose();
     return this._decodeStr(argmax);
@@ -306,7 +312,7 @@ async function measureElapsedTime(task: string, func: Function) {
 // Load the model and update UI
 async function loadModel() {
   updateStatus('loading DS2 model.....');
-  await ds.load('/model/model.json');
+  await ds.load('/tf-models-ds2-tfjs-layer3-june18/model.json');
   updateStatus('DS2 model loaded!');
 }
 
