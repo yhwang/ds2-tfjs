@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
+  "engines": {
+    "node": "8.*"
+  },
   "dependencies": {
     "@tensorflow/tfjs": "^1.1.2",
     "express": "^4.16.1"
