@@ -60,7 +60,6 @@ class SequenceProb {
         }
         return false;
       });
-      console.log(`merge: ${existing !== undefined}`);
       if (existing) {
         existing.prob = one.prob + existing.prob;
       } else {

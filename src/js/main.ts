@@ -312,7 +312,7 @@ async function measureElapsedTime(task: string, func: Function) {
 // Load the model and update UI
 async function loadModel() {
   updateStatus('loading DS2 model.....');
-  await ds.load('/tf-models-ds2-tfjs-layer3-june18/model.json');
+  await ds.load('/model/model.json');
   updateStatus('DS2 model loaded!');
 }
 

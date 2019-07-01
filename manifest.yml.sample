@@ -1,0 +1,6 @@
+---
+applications:
+ - name: <your Cf app name>
+   routes:
+    - <the host name of your app>
+   memory: 512M
