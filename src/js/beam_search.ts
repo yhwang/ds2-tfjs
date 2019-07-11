@@ -29,21 +29,21 @@ class SequenceProb {
   // Add new char and return a new SequenceProb
   append(index: number, prob: number) : SequenceProb {
     const newProb = this.prob * prob;
-    // leading space or blank index
+    // Leading blank index or space
     if (this._last === -1 && (index === 0 || index === BLANK_INDEX) ) {
       return new SequenceProb([], newProb);
     }
-    // grouping the same character
+    // Grouping the same character
     if (index === this._last) {
       return new SequenceProb([...this.seq], newProb, index);
     }
-    // blank index + new char case: remove blank index
+    // Blank index + new char case: remove blank index
     if (this._last === BLANK_INDEX && index !== BLANK_INDEX) {
       const newSeq = [...this.seq];
       newSeq.splice(this.seq.length - 1, 1, index);
       return new SequenceProb(newSeq, newProb, index);
     }
-    // new char case
+    // New char case
     return new SequenceProb([...this.seq, index], newProb, index);
   }
 
@@ -54,7 +54,7 @@ class SequenceProb {
       const len = one.seq.length;
       const existing: SequenceProb = rev.find((item) => {
         if (item.seq.length === len) {
-          if (len === 0 || item._last === one._last) {
+          if (item._last === one._last || len === 0) {
             return true;
           }
         }
@@ -75,41 +75,62 @@ class SequenceProb {
     list.forEach((one) => {
       if (one._last === BLANK_INDEX || one._last === 0) {
         one.seq.pop();
+        one._calculateLast();
         changed = true;
       }
     });
     if (changed) {
-      return this.merge(list);
+      return SequenceProb.merge(list);
     }
     return list;
   }
 
   // Convert char index sequence to a string
-  toString(): string {
+  convertToStr(): string {
     return this.seq.map((index) => {
       return CHAR_MAP.charAt(index);
     }).join('');
   }
+
+  // Dump string and prob
+  toString(): string {
+    return `${this.convertToStr()}, (${this.prob})`;
+  }
 }
 
-export function beamSearch(data: number[][], width: number): SequenceProb[] {
+export function beamSearch(probs: number[][], width: number)
+    : SequenceProb[] {
   let sequences: SequenceProb[] = [new SequenceProb([],1.0)];
-  // walk over each step in sequence
-    data.forEach( (row) => {
+  const lastTIndex = probs.length - 1;
+  // Walk over each step in sequence
+  probs.forEach( (row, tIndex) => {
     let allCandidates: SequenceProb[] = [];
-    // expand each current candidate
+    // Expand each current candidate
     sequences.forEach((seq) => {
-      row.forEach((cell, index) => {
-        allCandidates.push(seq.append(index, cell));
+      row.forEach((prob, cIndex) => {
+        // Drop 0 prob character
+        if(prob !== 0) {
+          allCandidates.push(seq.append(cIndex, prob));
+        }
       });
     });
-    allCandidates = SequenceProb.merge(allCandidates);
-    // order all candidates by score
+
+    if (lastTIndex === tIndex) {
+      allCandidates = SequenceProb.trimBlankIndex(allCandidates);
+    } else {
+      allCandidates = SequenceProb.merge(allCandidates);
+    }
+    // Order all candidates by score
     sequences = allCandidates.sort((a: SequenceProb, b: SequenceProb) => {
       return b.prob - a.prob;
     });
-    // select k best
+    // Select k best
     sequences.length = width;
+    // Rescale the probabilities if they become too small
+    if (sequences[0].prob < 0.0001) {
+      const total = sequences.reduce((a,b) => a + b.prob, 0);
+      sequences.forEach((seq) => seq.prob /= total);
+    }
   });
-  return SequenceProb.trimBlankIndex(sequences);
+  return sequences;
 }
