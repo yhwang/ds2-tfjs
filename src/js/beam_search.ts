@@ -1,5 +1,13 @@
 import { BLANK_INDEX, CHAR_MAP } from './constants';
 
+// Add logarithmic probabilities using:
+// ln(a + b) = ln(a) + ln(1 + exp(ln(b) - ln(a)))
+const logSumExp = (log1: number, log2: number): number => {
+  return log1 > log2 ?
+      log1 + Math.log1p(Math.exp(log2 - log1)):
+      log2 + Math.log1p(Math.exp(log1 - log2)); 
+};
+
 /**
  * Represent char index sequence and the probability
  */
@@ -28,7 +36,7 @@ class SequenceProb {
 
   // Add new char and return a new SequenceProb
   append(index: number, prob: number) : SequenceProb {
-    const newProb = this.prob * prob;
+    const newProb = this.prob + prob;
     // Leading blank index or space
     if (this._last === -1 && (index === 0 || index === BLANK_INDEX) ) {
       return new SequenceProb([], newProb);
@@ -61,7 +69,7 @@ class SequenceProb {
         return false;
       });
       if (existing) {
-        existing.prob = one.prob + existing.prob;
+        existing.prob = logSumExp(one.prob, existing.prob);
       } else {
         rev.push(one);
       }
@@ -100,7 +108,7 @@ class SequenceProb {
 
 export function beamSearch(probs: number[][], width: number)
     : SequenceProb[] {
-  let sequences: SequenceProb[] = [new SequenceProb([],1.0)];
+  let sequences: SequenceProb[] = [new SequenceProb([], 0.0)];
   const lastTIndex = probs.length - 1;
   // Walk over each step in sequence
   probs.forEach( (row, tIndex) => {
@@ -108,10 +116,7 @@ export function beamSearch(probs: number[][], width: number)
     // Expand each current candidate
     sequences.forEach((seq) => {
       row.forEach((prob, cIndex) => {
-        // Drop 0 prob character
-        if(prob !== 0) {
-          allCandidates.push(seq.append(cIndex, prob));
-        }
+        allCandidates.push(seq.append(cIndex, prob));
       });
     });
 
@@ -126,11 +131,6 @@ export function beamSearch(probs: number[][], width: number)
     });
     // Select k best
     sequences.length = width;
-    // Rescale the probabilities if they become too small
-    if (sequences[0].prob < 0.0001) {
-      const total = sequences.reduce((a,b) => a + b.prob, 0);
-      sequences.forEach((seq) => seq.prob /= total);
-    }
   });
   return sequences;
 }
