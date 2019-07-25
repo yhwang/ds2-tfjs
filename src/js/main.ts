@@ -89,9 +89,9 @@ class DeepSpeech {
     const pred: tf.Tensor[] = await this.model.executeAsync(
       {'features': feature}) as tf.Tensor[];
     // pred[0] == argmax of pred[1] against axes=2
-    const softmaxProbs = tf.tidy(() => pred[1].squeeze([0]));
-    const results = beamSearch(softmaxProbs.arraySync() as number[][], 5);
-    softmaxProbs.dispose();
+    const logProbs = tf.tidy(() => pred[1].squeeze([0]).log());
+    const results = beamSearch(logProbs.arraySync() as number[][], 5);
+    logProbs.dispose();
     pred[0].dispose();
     pred[1].dispose();
     return results[0].convertToStr();
