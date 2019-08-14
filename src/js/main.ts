@@ -1,6 +1,6 @@
 import * as tf from '@tensorflow/tfjs';
 import { parse } from './npy';
-import { beamSearch } from './beam_search';
+import { LanguageModel } from './beam_search';
 import { BLANK_INDEX, CHAR_MAP } from './constants';
 
 declare global {
@@ -15,6 +15,7 @@ declare global {
 const SAMPLE_RATE = 16000;
 const WINDOW_SIZE = 20; // 20 mS
 const STRIDE_SIZE = 10; // 10 mS
+const VOCAB_SIZE = 28;
 
 class DeepSpeech {
   model: tf.GraphModel;
@@ -90,10 +91,12 @@ class DeepSpeech {
       {'features': feature}) as tf.Tensor[];
     // pred[0] == argmax of pred[1] against axes=2
     const logProbs = tf.tidy(() => pred[1].squeeze([0]).log());
-    const results = beamSearch(logProbs.arraySync() as number[][], 5);
+    const results = languageModel.beamSearch(
+        logProbs.arraySync() as number[][], 64);
     logProbs.dispose();
     pred[0].dispose();
     pred[1].dispose();
+    // results.slice(0, 5).forEach(one => console.log(one.toString()));
     return results[0].convertToStr();
   }
 }
@@ -278,6 +281,7 @@ class UI {
 
 const ds = new DeepSpeech();
 let ui: UI;
+const languageModel = new LanguageModel('/trie.binary', VOCAB_SIZE);
 
 async function pageLoaded() {
   ui = new UI();
@@ -306,6 +310,7 @@ async function loadModel() {
   updateStatus('loading DS2 model.....');
   await ds.load('/model/model.json');
   updateStatus('DS2 model loaded!');
+  await languageModel.load();
 }
 
 // Transcribe and update UI
