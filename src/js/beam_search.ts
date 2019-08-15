@@ -245,11 +245,24 @@ class BeamEntry {
       return undefined;
     }
     const rev = new BeamEntry(this.seq, this._state, this._last);
-    const pNewNonBlank = this.pNonBlank + row[this._last];
-    const pNewBlank = logSumExp(this.pNonBlank, this.pBlank) + row[BLANK_INDEX];
-    rev.pNonBlank = pNewNonBlank;
-    rev.pBlank = pNewBlank;
-    rev.pTotal = logSumExp(pNewNonBlank, pNewBlank);
+    // blank probability only assigned in here
+    // and it is used in the extend() case 3
+    if (this._parent && this._parent._last === this._last) {
+      // If current sequence is abb, then copy() can be:
+      // 1. ab- + - ==> ab
+      // 2. abb + - ==> ab
+      // 3. abb + b ==> ab
+      // Therefore, use this.pTotal + blank for #1 and #2
+      rev.pBlank = this.pTotal + row[BLANK_INDEX];
+    } else {
+      // if current sequence is acb, then copy() can be:
+      // 1. acb + - ==> acb
+      // 2. acb + b ==> acb
+      // Therefore, use this.pNonBlank + blank for #1
+      rev.pBlank = this.pNonBlank + row[BLANK_INDEX];
+    }
+    rev.pNonBlank = this.pNonBlank + row[this._last];
+    rev.pTotal = logSumExp(rev.pNonBlank, rev.pBlank);
     rev._parent = this;
     return rev;
   }
@@ -264,17 +277,32 @@ class BeamEntry {
     let pNewTotal = 0;
     let newIndex = index;
     if (this._last === -1 && index === 0) {
+      // case 1:
       // leading space: merge space and blank
+      // '' + (' ' and blank) ==> but still ''
       newState = this.state;
       pNewTotal = this.pTotal + logSumExp(prob, pBlank);
       newIndex = -1;
     } else if (index === this._last) {
-      // blank + same label
-      newState = nextState(this, index);
-      pNewTotal = pNewNonBlank =
-          this.pBlank + logSumExp(scorer.getWeightedScore(newState), prob);
-      newSeq = [...this.seq];
+      if (this.pBlank === 0) {
+        // case 2:
+        // not from copy() step and no record for the blank probability
+        // no extend for this case.
+        return undefined;
+      } else {
+        // case 3:
+        // for those BeamEntry that derives from copy() step
+        // the label is 'ab' but the pBlank store the probability for
+        // 'ab-'. Therefore:
+        // 'ab' ==> 'ab-' + 'b' ==> 'abb'
+        newState = nextState(this, index);
+        pNewTotal = pNewNonBlank =
+            this.pBlank + logSumExp(scorer.getWeightedScore(newState), prob);
+        newSeq = [...this.seq, index];
+      }
     } else {
+      // case 4:
+      // 'ab' + 'c' ==> 'abc'
       newState = nextState(this, index);
       pNewTotal = pNewNonBlank =
           this.pTotal + logSumExp(scorer.getWeightedScore(newState), prob);
@@ -283,7 +311,6 @@ class BeamEntry {
 
     const rev = new BeamEntry(newSeq, newState, newIndex);
     rev.pNonBlank = pNewNonBlank;
-    rev.pBlank = this.pTotal + pBlank;
     rev.pTotal = pNewTotal;
     rev._parent = this;
     return rev;
@@ -426,11 +453,11 @@ export class LanguageModel {
       const allCandidates:BeamList = new BeamList(width);
       // Expand each current candidate
       beams.forEach((beam) => {
+        // calculate copy() case
         // first time slot has no copy case
-        if (tIndex > 0) {
-          // copy cases
-          allCandidates.add(beam.copy(row, this._scorer));
-        }
+        // the logic inside copy() return undefined
+        allCandidates.add(beam.copy(row, this._scorer));
+        // then run through all labels for the extend() case
         for(let cIndex = 0, len = row.length - 1; cIndex < len; cIndex++) {
           // extend cases
           allCandidates.add(
