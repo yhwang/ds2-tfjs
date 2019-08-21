@@ -1,4 +1,11 @@
-import { DEFAULT_TRIE_WEIGHT, BLANK_INDEX, CHAR_MAP } from './constants';
+import { DEFAULT_TRIE_WEIGHT, BLANK_INDEX, CHAR_MAP, N_GRAM_SIZE } from './constants';
+
+declare global {
+  interface EmscriptenModule {
+    addFunction?: Function;
+    stringToUTF8?: Function;
+  }
+}
 
 class LineParser {
   _payload: string;
@@ -160,36 +167,193 @@ const logSumExp = (log1: number, log2: number): number => {
 };
 
 /**
+ * This is used to load N-Gram binary.
+ */
+class NGram {
+  _size: number; // gram number
+  _path: string; // path for the binary
+  _nGramScore: Function; // WASM function
+  _defaultScore: number;
+
+  constructor(path: string, size: number, defaultScore = -100.0) {
+    this._path = path;
+    this._defaultScore = defaultScore;
+    this._size = size;
+  }
+
+  async load() {
+    if (Module !== undefined) {
+      await this._fetchNGram();
+      this._nGramScore =
+          Module.cwrap('NGramScore',
+              // return probability
+              'number',
+              // words ptr, word count, total word count, default score
+              ['number', 'number', 'number', 'number']);
+    }
+  }
+
+  _fetchNGram(): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
+      const fetchNGram =
+        Module.cwrap('FetchNGram', 'number', ['string', 'number']);
+      const newFuncPtr = Module.addFunction((rev:number) => {
+        if (rev === 0) {
+          resolve(true);
+        } else {
+          reject(false);
+        }
+      }, 'vi');
+      fetchNGram('./3-gram.binary', newFuncPtr);
+    });
+  }
+
+  /**
+   * Get score for the word list
+   * 
+   * Based on the n-gram size, it takes the last n words
+   * for scoring.
+   * 
+   * @param {string[]} words words list
+   * @returns score for the word list
+   * @memberof NGram
+   */
+  score(words: string[]) {
+    if (this._nGramScore === undefined) {
+      return -100.0;
+    }
+
+    let startIndex = words.length - this._size;
+    if (startIndex < 0) {
+      startIndex = 0;
+    }
+    let size = 0;
+    const sizes: number[] = [];
+    const targetWords: string[] = [];
+    for (let i = startIndex; i < words.length; i ++) {
+      const len = lengthBytesUTF8(words[i]) + 1;
+      sizes.push(len);
+      targetWords.push(words[i]);
+      size += len;
+    }
+    const stringHeap = Module._malloc(size);
+    let tmp = stringHeap;
+    targetWords.forEach( (word, index) => {
+      Module.stringToUTF8(word, tmp, sizes[index]);
+      tmp += sizes[index];
+    });
+
+    const prob:number =
+        this._nGramScore(stringHeap,
+            targetWords.length, // query word count
+            this._defaultScore);// default score for unknown
+    Module._free(stringHeap);
+    return prob;
+  }
+}
+
+/**
  * Calculate the score for BeamEntry
  *
  * @class BeamScorer
  */
 class BeamScorer {
   defaultScore: number;
-  weight: number;
+  _trieWeight: number;
+  _alpha: number;
+  _belta: number;
+  _nGramScore: NGram;
 
-  constructor(defaultScore: number, weight: number) {
+  constructor(defaultScore: number, trieWeight: number,
+      alpha: number, belta: number) {
     this.defaultScore = defaultScore;
-    this.weight = weight;
+    this._trieWeight = trieWeight;
+    this._alpha = alpha;
+    this._belta = belta;
   }
 
   getScore(state: BeamState) {
-    if (state && state.trieNode) {
-      return state.trieNode._minUnigramScore;
+    if (state && state._trieNode) {
+      return state._trieNode._minUnigramScore;
     }
     return this.defaultScore;
   }
 
   getWeightedScore(state: BeamState) {
-    return this.weight * this.getScore(state);
+    if (state.newWord) {
+      const prob =
+          this._alpha * this._nGramScore.score(state.words) + this._belta;
+      // console.log(`score:${prob} for words:${state.words}`);
+      return prob;
+    } else {
+      return this._trieWeight * this.getScore(state);
+    }
+  }
+
+  set nGramScore(nGramScore: NGram) {
+    this._nGramScore = nGramScore;
   }
 }
 
 /**
  * Store the Beam entry's state
  */
-interface BeamState {
-  trieNode: TrieNode;
+class BeamState {
+  _trieNode: TrieNode;
+  _words: string[];
+  _newChar: number[];
+  _newWord: boolean;
+
+  constructor(trieNode: TrieNode, parent?: BeamState) {
+    this._trieNode = trieNode;
+    this._newWord = false;
+    if (parent) {
+      this._words = [...parent._words];
+      this._newChar = [...parent._newChar];
+    } else {
+      this._words = [];
+      this._newChar = [];
+    }
+  }
+
+  addChar(char: number, newTrie: TrieNode) {
+    // space: a new word
+    if (char === 0) {
+      // another space after a new word
+      if (this._newWord) {
+        return;
+      }
+      if (this._newChar.length > 0) {
+        if (this._words.length === N_GRAM_SIZE) {
+          this._words.shift();
+        }
+        this._words.push(this._newChar.map(c => CHAR_MAP[c]).join(''));
+        this._newChar.length = 0;
+      }
+      this._trieNode = newTrie;
+      this._newWord = true;
+    } else {
+      this._newChar.push(char);
+      this._trieNode = this._trieNode ?
+          this._trieNode.children[char] : undefined;
+      this._newWord = false;
+    }
+  }
+
+  nextState(char: number, newTrie: TrieNode) {
+    const rev = new BeamState(this._trieNode, this);
+    rev.addChar(char, newTrie);
+    return rev;
+  }
+
+  get words() : string[] {
+    return this._words;
+  }
+
+  get newWord() : boolean {
+    return this._newWord;
+  }
+
 }
 
 /**
@@ -401,6 +565,7 @@ export class LanguageModel {
   _loaded: boolean;
   _trieWeight: number;
   _scorer: BeamScorer;
+  _ngram: NGram;
 
   /**
    * Create the LanguageModel with specified trie
@@ -410,12 +575,13 @@ export class LanguageModel {
    * @param triePath url to the trie binary
    * @param vocabSize label number
    */
-  constructor(triePath: string, vocabSize: number) {
+  constructor(triePath: string, ngram:string, vocabSize: number) {
     this._vocabSize = vocabSize;
     this._trieWeight = DEFAULT_TRIE_WEIGHT;
     this._trie = new Trie(triePath, this._vocabSize);
     this._loaded = false;
-    this._scorer = new BeamScorer(-100.0, this._trieWeight);
+    this._ngram = new NGram(ngram, N_GRAM_SIZE);
+    this._scorer = new BeamScorer(-100.0, this._trieWeight, 2.0, 1.0);
   }
 
   /**
@@ -423,7 +589,10 @@ export class LanguageModel {
    */
   async load() {
     if (!this._loaded) {
+      await this._ngram.load();
       await this._trie.load();
+      this._scorer.nGramScore = this._ngram;
+      // console.log(`score: ${this._ngram.score(['this', 'is', 'a'])}`);
     }
   }
 
@@ -434,24 +603,16 @@ export class LanguageModel {
    */
   beamSearch(logPropbs: number[][], width: number): BeamEntry[] {
     let beams: BeamEntry[] = [
-        new BeamEntry([], {trieNode: this._trie.rootNode})];
+        new BeamEntry([], new BeamState(this._trie.rootNode))];
 
-    const nextState = (beam: BeamEntry, newLabel: number) => {
-      if (newLabel === 0) {
-        // Starting a new word
-        return {trieNode: this._trie.rootNode};
-      }
-
-      if (beam.state.trieNode) {
-        return {trieNode: beam.state.trieNode.children[newLabel]};
-      }
-      return {trieNode: undefined};
+    const nextState = (beam: BeamEntry, newLabel: number): BeamState => {
+      return beam.state.nextState(newLabel, this._trie.rootNode);
     };
 
     // Walk over each time step in sequence
     logPropbs.forEach((row, tIndex) => {
       const allCandidates:BeamList = new BeamList(width);
-      // Expand each current candidate
+      // Go through each BeamEntry in the candidate list
       beams.forEach((beam) => {
         // calculate copy() case
         // first time slot has no copy case

@@ -8,6 +8,7 @@ export default {
       name: 'deepspeech_main',
       file: 'public/js/main.js',
       format: 'iife',
+      sourcemap: true,
     },
   ],
   plugins: [
@@ -16,7 +17,9 @@ export default {
         clean: true,
         tsconfigOverride: {
           compilerOptions: {
-            module: 'ES2015'
+            module: 'ES2015',
+            sourceMap: true,
+            inlineSourceMap: false
           },
           include: ['src/js/**/*']
         }
