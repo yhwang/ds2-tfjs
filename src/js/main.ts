@@ -281,7 +281,8 @@ class UI {
 
 const ds = new DeepSpeech();
 let ui: UI;
-const languageModel = new LanguageModel('/trie.binary', VOCAB_SIZE);
+const languageModel =
+    new LanguageModel('/trie.binary', '/3-gram.binary', VOCAB_SIZE);
 
 async function pageLoaded() {
   ui = new UI();

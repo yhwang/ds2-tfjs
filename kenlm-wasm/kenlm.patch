@@ -1,0 +1,124 @@
+diff -Naur kenlm/CMakeLists.txt kenlm.new/CMakeLists.txt
+--- kenlm/CMakeLists.txt	2016-10-29 14:17:03.000000000 -0700
++++ kenlm.new/CMakeLists.txt	2019-08-21 18:15:23.000000000 -0700
+kenlm/CMakeLists.txt
+@@ -4,6 +4,7 @@
+ project(kenlm)
+ 
+ option(FORCE_STATIC "Build static executables" OFF)
++option(BUILD_EXEC "Build executable" OFF)
+ if (FORCE_STATIC)
+   #presumably overkill, is there a better way?
+   #http://cmake.3232098.n2.nabble.com/Howto-compile-static-executable-td5580269.html
+diff -Naur kenlm/lm/CMakeLists.txt kenlm.new/lm/CMakeLists.txt
+--- kenlm/lm/CMakeLists.txt	2016-05-05 14:45:58.000000000 -0700
++++ kenlm.new/lm/CMakeLists.txt	2019-08-21 18:17:39.000000000 -0700
+kenlm/lm/CMakeList.txt
+@@ -55,8 +55,10 @@
+ 
+ set(LM_LIBS kenlm kenlm_util ${Boost_LIBRARIES} ${THREADS})
+ 
+-AddExes(EXES ${EXE_LIST}
++if(BUILD_EXEC)
++  AddExes(EXES ${EXE_LIST}
+         LIBRARIES ${LM_LIBS})
++endif()
+ 
+ if(BUILD_TESTING)
+ 
+diff -Naur kenlm/lm/builder/CMakeLists.txt kenlm.new/lm/builder/CMakeLists.txt
+--- kenlm/lm/builder/CMakeLists.txt	2018-05-18 07:30:35.000000000 -0700
++++ kenlm.new/lm/builder/CMakeLists.txt	2019-08-21 18:22:26.000000000 -0700
+@@ -34,10 +34,12 @@
+ 	set(THREADS pthread)
+ endif()
+ 
+-AddExes(EXES lmplz
++if(BUILD_EXEC)
++  AddExes(EXES lmplz
+         LIBRARIES kenlm_builder kenlm kenlm_util ${Boost_LIBRARIES} ${THREADS})
+-AddExes(EXES count_ngrams
++  AddExes(EXES count_ngrams
+         LIBRARIES kenlm_builder kenlm kenlm_util ${Boost_LIBRARIES} ${THREADS})
++endif()
+ 
+ if(BUILD_TESTING)
+ 
+diff -Naur kenlm/lm/filter/CMakeLists.txt kenlm.new/lm/filter/CMakeLists.txt
+--- kenlm/lm/filter/CMakeLists.txt	2016-05-05 14:45:58.000000000 -0700
++++ kenlm.new/lm/filter/CMakeLists.txt	2019-08-21 18:18:09.000000000 -0700
+@@ -28,6 +28,7 @@
+ 	set(THREADS pthread)
+ endif()
+ 
+-AddExes(EXES filter phrase_table_vocab
++if(BUILD_EXEC)
++  AddExes(EXES filter phrase_table_vocab
+         LIBRARIES kenlm_filter kenlm kenlm_util ${Boost_LIBRARIES} ${THREADS})
+-
++endif()
+diff -Naur kenlm/lm/interpolate/CMakeLists.txt kenlm.new/lm/interpolate/CMakeLists.txt
+--- kenlm/lm/interpolate/CMakeLists.txt	2016-05-05 14:45:58.000000000 -0700
++++ kenlm.new/lm/interpolate/CMakeLists.txt	2019-08-21 18:18:54.000000000 -0700
+@@ -37,9 +37,10 @@
+   
+       set(KENLM_INTERPOLATE_LIBS
+         kenlm_interpolate kenlm kenlm_util ${Boost_LIBRARIES} ${THREADS})
+-  
+-    AddExes(EXES ${KENLM_INTERPOLATE_EXES}
++    if(BUILD_EXEC) 
++      AddExes(EXES ${KENLM_INTERPOLATE_EXES}
+             LIBRARIES ${KENLM_INTERPOLATE_LIBS})
++    endif()
+   
+     if(BUILD_TESTING)
+         AddTests(TESTS backoff_reunification_test bounded_sequence_encoding_test normalize_test tune_derivatives_test
+diff -Naur kenlm/util/CMakeLists.txt kenlm.new/util/CMakeLists.txt
+--- kenlm/util/CMakeLists.txt	2016-05-05 14:45:58.000000000 -0700
++++ kenlm.new/util/CMakeLists.txt	2019-08-21 18:16:05.000000000 -0700
+@@ -64,15 +64,17 @@
+ endif()
+ 
+ if (NOT MSVC)
+-	set(THREADS pthread)
++  set(THREADS pthread)
+ endif()
+ 
+ # Group these objects together for later use.
+ add_library(kenlm_util ${KENLM_UTIL_DOUBLECONVERSION_SOURCE} ${KENLM_UTIL_STREAM_SOURCE} ${KENLM_UTIL_SOURCE})
+ target_link_libraries(kenlm_util ${Boost_LIBRARIES} ${READ_COMPRESSED_LIBS} ${THREADS} ${TIMER_LINK})
+ 
+-AddExes(EXES probing_hash_table_benchmark
++if(BUILD_EXEC)
++  AddExes(EXES probing_hash_table_benchmark
+         LIBRARIES kenlm_util ${Boost_LIBRARIES} ${THREADS})
++endif()
+ 
+ # Only compile and run unit tests if tests should be run
+ if(BUILD_TESTING)
+diff -Naur kenlm/util/double-conversion/utils.h kenlm.new/util/double-conversion/utils.h
+--- kenlm/util/double-conversion/utils.h	2018-05-18 07:30:35.000000000 -0700
++++ kenlm.new/util/double-conversion/utils.h	2019-08-21 17:54:30.000000000 -0700
+@@ -77,7 +77,7 @@
+     defined(__SH4__) || defined(__alpha__) || \
+     defined(_MIPS_ARCH_MIPS32R2) || \
+     defined(__AARCH64EL__) || defined(__aarch64__) || \
+-    defined(__riscv)
++    defined(__riscv) || defined(__EMSCRIPTEN__)
+ #define DOUBLE_CONVERSION_CORRECT_DOUBLE_OPERATIONS 1
+ #elif defined(__mc68000__)
+ #undef DOUBLE_CONVERSION_CORRECT_DOUBLE_OPERATIONS
+diff -Naur kenlm/util/file.cc kenlm.new/util/file.cc
+--- kenlm/util/file.cc	2018-05-18 07:30:35.000000000 -0700
++++ kenlm.new/util/file.cc	2019-08-21 17:59:00.000000000 -0700
+@@ -541,7 +541,9 @@
+   for (int i=0; vars[i]; ++i) {
+     char *val =
+ #if defined(_GNU_SOURCE)
+-#if __GLIBC_PREREQ(2,17)
++#if defined(__EMSCRIPTEN__)
++    getenv
++#elif __GLIBC_PREREQ(2,17)
+       secure_getenv
+ #else // __GLIBC_PREREQ
+       getenv
