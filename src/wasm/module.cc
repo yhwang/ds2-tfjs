@@ -59,7 +59,9 @@ int32_t FetchNGram(char* path, int fp) {
     data->fp = fp;
     attr.userData = data;
     strcpy(attr.requestMethod, "GET");
-    attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
+    attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY
+                    | EMSCRIPTEN_FETCH_PERSIST_FILE
+                    | EMSCRIPTEN_FETCH_APPEND;
     attr.onsuccess = downloadSucceeded;
     attr.onerror = downloadFailed;
     emscripten_fetch(&attr, path);
@@ -97,4 +99,10 @@ float_t NGramScore(char* data, const int wc, const float defaultScore) {
     return prob;
 }
 
+int main() {
+  EM_ASM(
+    Module['runtimeInitialized'] = true;
+  );
+  return 0;
+}
 }

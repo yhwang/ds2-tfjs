@@ -1,4 +1,5 @@
 import node from 'rollup-plugin-node-resolve';
+import commonjs from 'rollup-plugin-commonjs';
 import typescript from 'rollup-plugin-typescript2'
 
 export default {
@@ -13,6 +14,7 @@ export default {
   ],
   plugins: [
     node(),
+    commonjs(),
     typescript({
         clean: true,
         tsconfigOverride: {

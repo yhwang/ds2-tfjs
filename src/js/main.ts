@@ -9,9 +9,17 @@ declare global {
     transcribe?: Function;
     fileSelected?: Function;
     record?: Function;
+    AudioContext?: Function;
+    webkitAudioContext?: Function;
+  }
+
+  interface EmscriptenModule {
+    runtimeInitialized?: boolean;
   }
 }
 
+declare global {
+}
 const SAMPLE_RATE = 16000;
 const WINDOW_SIZE = 20; // 20 mS
 const STRIDE_SIZE = 10; // 10 mS
@@ -21,8 +29,12 @@ class DeepSpeech {
   model: tf.GraphModel;
 
   // load the tfjs-graph model
-  async load(loc: string) {
-    this.model = await tf.loadGraphModel(loc);
+  load(loc: string) {
+    return Promise.resolve().then(() => {
+      return tf.loadGraphModel(loc);
+    }).then((model) => {
+      this.model = model;
+    });
   }
 
   // CTC greedy decoder implementation
@@ -77,6 +89,7 @@ class DeepSpeech {
     }
     await measureElapsedTime('wav decode and stft', async () => {
       const rawWav = await audioProcessor.decode(raw);
+
       feature = audioProcessor.stft(rawWav);
     });
     const featureBatch = feature.expandDims(0);
@@ -133,13 +146,18 @@ class AudioProcessor {
     return buff.getChannelData(0);
   }
 
-  async decode(bin: ArrayBuffer): Promise<Float32Array> {
+  decode(bin: ArrayBuffer): Promise<Float32Array> {
     const audioCtx = new AudioContext({sampleRate: this.sampleRate});
-    const buff = await audioCtx.decodeAudioData(bin);
-    updateStatus(`sample rate:${buff.sampleRate}, ` +
-        `ch #: ${buff.numberOfChannels}, ` +
-        `length:${buff.getChannelData(0).length}`);
-    return buff.getChannelData(0);
+    return new Promise((resolve, reject) => {
+      audioCtx.decodeAudioData(bin, (buff) => {
+        updateStatus(`sample rate:${buff.sampleRate}, ` +
+            `ch #: ${buff.numberOfChannels}, ` +
+            `length:${buff.getChannelData(0).length}`);
+        resolve(buff.getChannelData(0));
+      }, (error) => {
+        reject(error);
+      });
+    });
   }
 
   /**
@@ -290,28 +308,45 @@ async function pageLoaded() {
     navigator.mediaDevices.getUserMedia({audio: true})
         .then((stream) => {
           ui.display(ui.recordDiv);
+          ui.disable(ui.recordBtn);
           ui.mediaStream = stream;
         });
   }
-  await measureElapsedTime('loading model', async () => {
-    await loadModel();
-  });
-  // after loading the model, enable the transcribe button
-  ui.enable(ui.audioSelector);
+  const initialized = () => {
+    measureElapsedTime('loading model', () => {
+      return loadModel();
+    }).then(() => {
+      // after loading the model, enable the transcribe button
+      ui.enable(ui.audioSelector);
+      ui.enable(ui.recordBtn);
+    });
+  };
+
+  if (Module.runtimeInitialized === true) {
+    initialized();
+  } else {
+    Module.onRuntimeInitialized = () => {
+      initialized();
+    };
+  }
 }
 
-async function measureElapsedTime(task: string, func: Function) {
+function measureElapsedTime(task: string, func: Function) {
   const start = Date.now();
-  await func();
-  console.log(`${task}: ${Date.now() - start}`);
+  return Promise.resolve().then(() => {
+    return func();
+  }).then(() => {
+    console.log(`${task}: ${Date.now() - start}`);
+  });
 }
 
 // Load the model and update UI
-async function loadModel() {
+function loadModel() {
   updateStatus('loading DS2 model.....');
-  await ds.load('/model/model.json');
-  updateStatus('DS2 model loaded!');
-  await languageModel.load();
+  return Promise.all([ds.load('/model/model.json'), languageModel.load()])
+      .then(() => {
+        updateStatus('DS2 model loaded!');
+      });
 }
 
 // Transcribe and update UI
@@ -321,6 +356,7 @@ async function transcribe(element: HTMLInputElement) {
   }
   ui.disable(ui.audioSelector);
   ui.disable(element);
+  ui.disable(ui.recordBtn);
   updateTranscription('');
   ui.addSpinner(element, 'Transcribe...');
   await measureElapsedTime('transcribe', async () => {
@@ -331,6 +367,7 @@ async function transcribe(element: HTMLInputElement) {
   ui.replaceText(element, 'Transcribe');
   ui.enable(ui.audioSelector);
   ui.enable(element);
+  ui.enable(ui.recordBtn);
 }
 
 function prepareInput(url: string): Promise<tf.Tensor> {
@@ -379,7 +416,6 @@ function record(element: HTMLButtonElement) {
       ui.player.load();
       ui.display(ui.playerDiv);
       transcribeRecording(e.data);
-      ui.disable(ui.recordBtn);
     };
   }
 
@@ -400,6 +436,7 @@ async function transcribeRecording(recording: Blob) {
   ui.disable(ui.audioSelector);
   ui.disable(ui.transcribeBtn);
   updateTranscription('');
+  ui.disable(ui.recordBtn);
   ui.addSpinner(ui.transcribeBtn, 'Transcribe...');
   await measureElapsedTime('transcribe', async () => {
     const transcription = await ds.transcribeFile(recording);
@@ -410,6 +447,8 @@ async function transcribeRecording(recording: Blob) {
   ui.enable(ui.recordBtn);
   updateStatus('done');
 }
+
+window.AudioContext = window.AudioContext || window.webkitAudioContext;
 
 // attach functions to window object to prevent the pruning
 window.pageLoaded = pageLoaded;

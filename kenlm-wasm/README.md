@@ -5,7 +5,7 @@ written in C++, fortunately, WebAssembly can compile C/C++ program into LLVM
 bitcode, load the bitcode into the browser and integrate with JavaScript.
 
 In order to use KenLM library in JavaScript, we need to do the followings:
-- Compile the KenLM as static library in bitcode format
+- Compile the KenLM as static library in LLVM bitcode format
 - Write a C program to use the KenLM API to load and query the N-Gram
 - Compile the C program and link with KenLM static library into a
   WebAssembly module
@@ -47,7 +47,7 @@ emar rc build/lib/libboost.a build/lib/libboost*.bc
 ```
 You can find the static lib archive files under `build/lib` directory.
 
-It's time to build KenLM now:
+It's time to build KenLM as static library into LLVM bitcode:
 
 ```
 # Make sure you are not under boost directory and get one level up to 'kenlm-wasm'
@@ -78,9 +78,20 @@ cp util/double-conversion/utils.h include/util/double-conversion
 
 Well done! You successfully compile KenLM to WebAssembly bitcode.
 
-Then you can build the WebAssembly module to use KenLM:
+
+### Build WebAssembly module to use KenLM
+Then you can build the WebAssembly module to use KenLM.
+The code is under `src/wasm` directory. The `emcc` compiler generates
+3 output files:
+- module.js
+- module.html
+- module.wasm
+
+We need .js and .wasm files. Here is the command to build the module:
 ```
+# Get to the source code directory
 cd ../src/wasm
 
-emcc module.cc -o module.html -I../../kenlm-wasm/kenlm/include -I../../kenlm-wasm/boost_1_71_0/build/include -L../../kenlm-wasm/boost_1_71_0/build/lib/ -L../../kenlm-wasm/kenlm/build/lib -L${HOME}/.emscripten_cache/asmjs -lboost -lkenlm -lkenlm_util -lz -s EXPORTED_FUNCTIONS='["_NGramScore", "_FetchNGram"]' -s EXTRA_EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "stringToUTF8", "addFunction"]' -s ALLOW_MEMORY_GROWTH=1 -s RESERVED_FUNCTION_POINTERS=20 -s FETCH=1 -DKENLM_MAX_ORDER=6 -O3
+# Use emcc compile to compile the code
+emcc module.cc -o module.html -I../../kenlm-wasm/kenlm/include -I../../kenlm-wasm/boost_1_71_0/build/include -L../../kenlm-wasm/boost_1_71_0/build/lib/ -L../../kenlm-wasm/kenlm/build/lib -L${HOME}/.emscripten_cache/asmjs -lboost -lkenlm -lkenlm_util -lz -s EXPORTED_FUNCTIONS='["_main", "_NGramScore", "_FetchNGram"]' -s EXTRA_EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "stringToUTF8", "addFunction"]' -s ALLOW_MEMORY_GROWTH=1 -s RESERVED_FUNCTION_POINTERS=20 -s FETCH=1 -DKENLM_MAX_ORDER=6 -O3
 ```

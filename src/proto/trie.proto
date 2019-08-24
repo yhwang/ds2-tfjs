@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package trie;
+
+message TrieNode {
+  required int32 vocab_size = 1;
+  required int32 prefix_count = 2;
+  optional uint32 min_score_word = 3;
+  optional float min_unigram_score = 4;
+  map<int32, TrieNode> children = 5;
+}
+
+message Trie {
+  required int32 magic = 1;
+  required int32 version = 2;
+  required int32 vocab_size = 3;
+  required TrieNode root_node = 4;
+}
