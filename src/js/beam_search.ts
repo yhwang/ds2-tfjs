@@ -1,4 +1,5 @@
 import { DEFAULT_TRIE_WEIGHT, BLANK_INDEX, CHAR_MAP, N_GRAM_SIZE } from './constants';
+import { Trie, TrieNode } from './trie_pb';
 
 declare global {
   interface EmscriptenModule {
@@ -7,146 +8,46 @@ declare global {
   }
 }
 
-class LineParser {
-  _payload: string;
-  _index: number;
-  _eof: boolean;
-
-  constructor(payload: string) {
-    this._index = 0;
-    this._eof = false;
-    this._payload = payload;
-  }
-
-  getLine() {
-    if (this._eof) {
-      return null;
-    }
-    const index = this._payload.indexOf('\n', this._index);
-    if (index === -1) {
-      this._eof = true;
-      return this._payload.substring(this._index);
-    }
-    const rev = this._payload.substring(this._index, index);
-    this._index = index + 1;
-    if (this._index >= this._payload.length) {
-      this._eof = true;
-    }
-    return rev;
-  }
-
-  getLineAsInteger() {
-    return Number.parseInt(this.getLine(), 10);
-  }
-
-  getLineAsFloat() {
-    return Number.parseFloat(this.getLine());
-  }
-
-  isEndOfFile() {
-    return this._eof;
-  }
-}
-
-class TrieNode {
-  _vocabSize: number;
-  _prefixCount: number;
-  _minScoreWord: number;
-  _minUnigramScore: number;
-  _parent: TrieNode;
-  children: TrieNode[];
-
-  constructor(parent:TrieNode, vocabSize: number) {
-    this._vocabSize = vocabSize;
-    this._prefixCount = 0;
-    this._minScoreWord = 0;
-    this._minUnigramScore = Number.MAX_VALUE;
-    this.children = [];
-    this.children.length = vocabSize;
-  }
-
-  loadNode(lineParser: LineParser, prefixCount: number) {
-    this._prefixCount = prefixCount;
-    this._minScoreWord = lineParser.getLineAsInteger();
-    this._minUnigramScore = lineParser.getLineAsFloat();
-  }
-}
-
-interface ParseStack {
-  node: TrieNode;
-  index: number;
-}
-
-export class Trie {
+/**
+ * Trie binary loader
+ * @export
+ * @class TrieLoader
+ */
+export class TrieLoader {
   _url: string;
-  _root: TrieNode;
+  _vocabSize: number;
+  _trie: Trie;
+  _rootNode: TrieNode;
 
   constructor(url: string, labels: number) {
     this._url = url;
-    this._root = new TrieNode(null, labels);
+    this._vocabSize = labels;
   }
 
-  async load() {
-    await fetch(this._url)
+  load() {
+    return fetch(this._url)
         .then(resp => resp.arrayBuffer())
         .then((ab) => {
-          const td = new TextDecoder('ascii');
-          return td.decode(new Uint8Array(ab));
-        })
-        .then(content => {
-          this._parseContent(content);
+          this._trie = Trie.deserializeBinary(new Uint8Array(ab));
+          if (this._trie.getMagic() !== 1414678853 ||
+              this._trie.getVersion() !== 1 ||
+              this._trie.getVocabSize() !== this._vocabSize) {
+
+            throw new Error('Incorrect trie format');
+          }
+          this._rootNode = this._trie.getRootNode();
         })
         .catch((error) => {
           console.log(error);
         });
   }
 
-  _parseContent(payload: string) {
-    const parser = new LineParser(payload);
-
-    if (parser.getLine() !== '1414678853' ||
-        parser.getLine() !== '1' ||
-        parser.getLine() !== `${this._root._vocabSize}`) {
-      throw new Error('invalid trie format');
-    }
-
-    const parseStack: ParseStack[] = [{node:this._root, index:0}];
-
-    // parse root node first
-    const prefixCount = parser.getLineAsInteger();
-    this._root.loadNode(parser, prefixCount);
-
-    // use while and a vector(ParseStack) to parse child nodes
-    // in order to avoid stack overflow
-    while(!parser.isEndOfFile()) {
-      if (parseStack.length === 0) {
-        console.log('Some contents in the trie file are not parsed!');
-        console.log(`length: ${parser._payload.length}, ${parser._index}`);
-        break;
-      }
-      const current = parseStack[parseStack.length - 1];
-      if (current.index === current.node._vocabSize) {
-        parseStack.pop();
-        continue;
-      }
-
-      const prefixCount = parser.getLineAsInteger();
-      if(prefixCount === -1) {
-        current.index = current.index + 1;
-        continue;
-      }
-
-      const node = new TrieNode(current.node, current.node._vocabSize);
-      node.loadNode(parser, prefixCount);
-      current.node.children[current.index] = node;
-      parseStack.push({node, index: 0});
-
-      current.index = current.index + 1;
-    }
+  get trie() {
+    return this._trie;
   }
 
   get rootNode() {
-    return this._root;
+    return this._rootNode;
   }
 }
 
@@ -181,27 +82,28 @@ class NGram {
     this._size = size;
   }
 
-  async load() {
-    if (Module !== undefined) {
-      await this._fetchNGram();
-      this._nGramScore =
+  load() {
+    return Promise.resolve(this).then((ngram) => {
+      return ngram._fetchNGram();
+    }).then((ngram) => {
+      ngram._nGramScore =
           Module.cwrap('NGramScore',
               // return probability
               'number',
               // words ptr, word count, total word count, default score
               ['number', 'number', 'number', 'number']);
-    }
+    });
   }
 
-  _fetchNGram(): Promise<boolean> {
-    return new Promise<boolean>((resolve, reject) => {
+  _fetchNGram(): Promise<NGram> {
+    return new Promise<NGram>((resolve, reject) => {
       const fetchNGram =
         Module.cwrap('FetchNGram', 'number', ['string', 'number']);
       const newFuncPtr = Module.addFunction((rev:number) => {
         if (rev === 0) {
-          resolve(true);
+          resolve(this);
         } else {
-          reject(false);
+          reject(undefined);
         }
       }, 'vi');
       fetchNGram('./3-gram.binary', newFuncPtr);
@@ -274,7 +176,7 @@ class BeamScorer {
 
   getScore(state: BeamState) {
     if (state && state._trieNode) {
-      return state._trieNode._minUnigramScore;
+      return state._trieNode.getMinUnigramScore();
     }
     return this.defaultScore;
   }
@@ -335,7 +237,7 @@ class BeamState {
     } else {
       this._newChar.push(char);
       this._trieNode = this._trieNode ?
-          this._trieNode.children[char] : undefined;
+          this._trieNode.getChildrenMap().get(char) : undefined;
       this._newWord = false;
     }
   }
@@ -560,7 +462,7 @@ class BeamList {
  * CTC decoding with language model.
  */
 export class LanguageModel {
-  _trie: Trie;
+  _trieLoader: TrieLoader;
   _vocabSize: number;
   _loaded: boolean;
   _trieWeight: number;
@@ -578,7 +480,7 @@ export class LanguageModel {
   constructor(triePath: string, ngram:string, vocabSize: number) {
     this._vocabSize = vocabSize;
     this._trieWeight = DEFAULT_TRIE_WEIGHT;
-    this._trie = new Trie(triePath, this._vocabSize);
+    this._trieLoader = new TrieLoader(triePath, this._vocabSize);
     this._loaded = false;
     this._ngram = new NGram(ngram, N_GRAM_SIZE);
     this._scorer = new BeamScorer(-100.0, this._trieWeight, 2.0, 1.0);
@@ -587,13 +489,15 @@ export class LanguageModel {
   /**
    * Load Trie
    */
-  async load() {
-    if (!this._loaded) {
-      await this._ngram.load();
-      await this._trie.load();
-      this._scorer.nGramScore = this._ngram;
-      // console.log(`score: ${this._ngram.score(['this', 'is', 'a'])}`);
+  load() {
+    if (this._loaded) {
+      return Promise.resolve();
     }
+    return Promise.all([this._ngram.load(), this._trieLoader.load()])
+        .then(() => {
+            this._scorer.nGramScore = this._ngram;
+            // console.log(`score: ${this._ngram.score(['this', 'is', 'a'])}`);
+        });
   }
 
   /**
@@ -603,10 +507,11 @@ export class LanguageModel {
    */
   beamSearch(logPropbs: number[][], width: number): BeamEntry[] {
     let beams: BeamEntry[] = [
-        new BeamEntry([], new BeamState(this._trie.rootNode))];
+        new BeamEntry([], new BeamState(this._trieLoader.rootNode))];
 
     const nextState = (beam: BeamEntry, newLabel: number): BeamState => {
-      return beam.state.nextState(newLabel, this._trie.rootNode);
+      return beam.state.nextState(
+          newLabel, this._trieLoader.rootNode);
     };
 
     // Walk over each time step in sequence
@@ -640,7 +545,7 @@ export class LanguageModel {
    * @readonly
    * @memberof LanguageModel
    */
-  get trie() {
-    return this._trie;
+  get trieLoader() {
+    return this._trieLoader;
   }
 }
