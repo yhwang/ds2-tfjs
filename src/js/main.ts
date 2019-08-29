@@ -2,6 +2,7 @@ import * as tf from '@tensorflow/tfjs';
 import { parse } from './npy';
 import { LanguageModel } from './beam_search';
 import { BLANK_INDEX, CHAR_MAP } from './constants';
+import { downsample } from './webaudiol16';
 
 declare global {
   interface Window {
@@ -89,7 +90,6 @@ class DeepSpeech {
     }
     await measureElapsedTime('wav decode and stft', async () => {
       const rawWav = await audioProcessor.decode(raw);
-
       feature = audioProcessor.stft(rawWav);
     });
     const featureBatch = feature.expandDims(0);
@@ -149,11 +149,17 @@ class AudioProcessor {
   decode(bin: ArrayBuffer): Promise<Float32Array> {
     const audioCtx = new AudioContext({sampleRate: this.sampleRate});
     return new Promise((resolve, reject) => {
-      audioCtx.decodeAudioData(bin, (buff) => {
+      audioCtx.decodeAudioData(bin, (buff: AudioBuffer) => {
         updateStatus(`sample rate:${buff.sampleRate}, ` +
             `ch #: ${buff.numberOfChannels}, ` +
             `length:${buff.getChannelData(0).length}`);
-        resolve(buff.getChannelData(0));
+        if (buff.sampleRate !== this.sampleRate) {
+          // downsample
+          console.log('downsampling to 16000 and using single channel');
+          resolve(downsample(buff));
+        } else {
+          resolve(buff.getChannelData(0));
+        }
       }, (error) => {
         reject(error);
       });
@@ -305,10 +311,10 @@ const languageModel =
 async function pageLoaded() {
   ui = new UI();
   if (hasGetUserMedia()) {
+    ui.disable(ui.recordBtn);
     navigator.mediaDevices.getUserMedia({audio: true})
-        .then((stream) => {
+        .then((stream: MediaStream) => {
           ui.display(ui.recordDiv);
-          ui.disable(ui.recordBtn);
           ui.mediaStream = stream;
         });
   }
