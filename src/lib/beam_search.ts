@@ -10,10 +10,9 @@ declare global {
 
 /**
  * Trie binary loader
- * @export
  * @class TrieLoader
  */
-export class TrieLoader {
+class TrieLoader {
   _url: string;
   _vocabSize: number;
   _trie: Trie;
@@ -106,7 +105,7 @@ class NGram {
           reject(undefined);
         }
       }, 'vi');
-      fetchNGram('./3-gram.binary', newFuncPtr);
+      fetchNGram(this._path, newFuncPtr);
     });
   }
 
@@ -182,11 +181,10 @@ class BeamScorer {
   }
 
   getWeightedScore(state: BeamState) {
-    if (state.newWord) {
-      const prob =
-          this._alpha * this._nGramScore.score(state.words) + this._belta;
+    if (state.newWord && this._nGramScore) {
+      return this._alpha * this._nGramScore.score(state.words) +
+          this._belta;
       // console.log(`score:${prob} for words:${state.words}`);
-      return prob;
     } else {
       return this._trieWeight * this.getScore(state);
     }
@@ -458,6 +456,34 @@ class BeamList {
 }
 
 /**
+ * Option object to initialize the LanguageModel
+ * @export
+ * @interface LanguageModelOption
+ */
+export interface LanguageModelOption {
+  /**
+   * path/url to point to trie file
+   * @type {string}
+   * @memberof LanguageModelOption
+   */
+  triePath?: string;
+
+  /**
+   * path/url to point to ngram file
+   * @type {string}
+   * @memberof LanguageModelOption
+   */
+  ngram?: string;
+
+  /**
+   * weighting for trie
+   * @type {number}
+   * @memberof LanguageModelOption
+   */
+  trieWeight?: number;
+}
+
+/**
  * Wrap the Trie and Language model and provide
  * CTC decoding with language model.
  */
@@ -468,21 +494,32 @@ export class LanguageModel {
   _trieWeight: number;
   _scorer: BeamScorer;
   _ngram: NGram;
+  _option: LanguageModelOption;
+  _trieRoot: TrieNode;
 
   /**
    * Create the LanguageModel with specified trie
    * and vocabulary size.
    *
    * Note: it doesn't load the trie yet
-   * @param triePath url to the trie binary
-   * @param vocabSize label number
+   * @param {number} vocabSize label number
+   * @param {LanguageModelOption} option trie path, ngram path and etc.
    */
-  constructor(triePath: string, ngram:string, vocabSize: number) {
+  constructor(vocabSize: number, option?: LanguageModelOption) {
     this._vocabSize = vocabSize;
     this._trieWeight = DEFAULT_TRIE_WEIGHT;
-    this._trieLoader = new TrieLoader(triePath, this._vocabSize);
+    this._trieRoot = undefined;
+    
+    this._option = option || {};
+    if (this._option.triePath) {
+      this._trieLoader =
+          new TrieLoader(this._option.triePath, this._vocabSize);
+    }
+    if (this._option.ngram) {
+      this._ngram = new NGram(this._option.ngram, N_GRAM_SIZE);
+    }
+    this._trieWeight = this._option.trieWeight || DEFAULT_TRIE_WEIGHT;
     this._loaded = false;
-    this._ngram = new NGram(ngram, N_GRAM_SIZE);
     this._scorer = new BeamScorer(-100.0, this._trieWeight, 2.0, 1.0);
   }
 
@@ -490,12 +527,21 @@ export class LanguageModel {
    * Load Trie
    */
   load() {
-    if (this._loaded) {
+    if (this._loaded || 
+        (this._trieLoader === undefined && this._ngram === undefined)) {
       return Promise.resolve();
     }
-    return Promise.all([this._ngram.load(), this._trieLoader.load()])
+    const list: Array<Promise<void>> = [];
+    if (this._ngram !== undefined) {
+      list.push(this._ngram.load());
+    }
+    if (this._trieLoader !== undefined) {
+      list.push(this._trieLoader.load());
+    }
+    return Promise.all(list)
         .then(() => {
             this._scorer.nGramScore = this._ngram;
+            this._trieRoot = this._trieLoader._rootNode;
             // console.log(`score: ${this._ngram.score(['this', 'is', 'a'])}`);
         });
   }
@@ -507,11 +553,11 @@ export class LanguageModel {
    */
   beamSearch(logPropbs: number[][], width: number): BeamEntry[] {
     let beams: BeamEntry[] = [
-        new BeamEntry([], new BeamState(this._trieLoader.rootNode))];
+        new BeamEntry([], new BeamState(this._trieRoot))];
 
     const nextState = (beam: BeamEntry, newLabel: number): BeamState => {
       return beam.state.nextState(
-          newLabel, this._trieLoader.rootNode);
+          newLabel, this._trieRoot);
     };
 
     // Walk over each time step in sequence
