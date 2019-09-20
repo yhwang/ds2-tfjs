@@ -32,25 +32,23 @@ const FILTER = [
   -0.00089024,
   -0.037935
 ];
-
+ 
 /**
- * Downsamples WebAudio to 16 kHz.
- * And only use channel 0
- * @param audioBuff Microphone/MediaElement audio chunk
- * @return 'audio/l16' chunk
+ * Downsample the audio data from {srcSampleRate} to 16 kHz
+ * @param {Float32Array} data audo data for a single channel
+ * @param {number} srcSampleRate source sameple rate
+ * @returns Float32Array with 16 kHz sample rate
  */
-export const downsample = (audioBuff: AudioBuffer) => {
-  // Only get 1 channel
-  const buffData = audioBuff.getChannelData(0);
-  const ratio = audioBuff.sampleRate / TARGET_SAMPLE_RATE;
+export const downsampleTo16K = (data: Float32Array, srcSampleRate: number) => {
+  const ratio = srcSampleRate / TARGET_SAMPLE_RATE;
   const outLen =
-      Math.floor((audioBuff.length - FILTER.length) / ratio) + 1;
+      Math.floor((data.length - FILTER.length) / ratio) + 1;
   const rev = new Float32Array(outLen);
-  for (let i = 0, end = audioBuff.length - FILTER.length + 1; i < end; i++) {
+  for (let i = 0, end = data.length - FILTER.length + 1; i < end; i++) {
     const offset = Math.round(ratio * i);
     let sample = 0;
     for (let j = 0, len = FILTER.length; j < len; ++j) {
-      sample += buffData[offset + j] * FILTER[j];
+      sample += data[offset + j] * FILTER[j];
     }
     rev[i] = sample;
   }
