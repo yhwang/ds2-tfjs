@@ -68,6 +68,28 @@ int32_t FetchNGram(char* path, int fp) {
     return rev;
 }
 
+int32_t ReadNGram(char* path, char* filename, int fp) {
+    int32_t rev = 0;
+    if (sINIT != false && sModel != nullptr) {
+        // TODO: find a way to call fp after return
+        return rev;
+    }
+    char newFilename[strlen(filename) + 7];
+    sprintf(newFilename, "/node/%s", filename);
+    EM_ASM_({
+        FS.mkdir('/node');
+        FS.mount(NODEFS, { root: UTF8ToString($0) }, '/node');
+    }, path);
+
+    lm::ngram::Config config;
+    config.load_method = util::POPULATE_OR_READ;
+    sModel = new Model(newFilename, config);
+    sINIT = true;
+    void (*cb)(int) = reinterpret_cast<void (*)(int)>(fp);
+    cb(rev);
+    return rev;
+}
+
 float_t NGramScore(char* data, const int wc, const float defaultScore) {
     // Words are concated in JS land with null-terminated:
     // i.e. 'word1 word2 word3 word4 ' (space is null)

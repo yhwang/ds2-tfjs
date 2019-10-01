@@ -1,20 +1,92 @@
-import { DEFAULT_TRIE_WEIGHT, BLANK_INDEX, CHAR_MAP, N_GRAM_SIZE } from './constants';
+import {
+    DEFAULT_TRIE_WEIGHT,
+    EN_CHAR_MAP, EN_BLANK_INDEX,
+    N_GRAM_SIZE, fetchWrapper, IS_NODE
+    } from './constants';
 import { Trie, TrieNode } from './trie_pb';
 
 declare global {
   interface EmscriptenModule {
     addFunction?: Function;
     stringToUTF8?: Function;
+    runtimeInitialized?: boolean;
+  }
+
+  namespace NodeJS {
+    interface Global {
+        Module?: EmscriptenModule;
+    }
   }
 }
+
+/**
+ * This class is used to represent the vocabulary for
+ * the SpeechModel. It contains the valid characters
+ * , index mapping and index of CTC blank
+ *
+ * @export
+ * @class Vocabulary
+ */
+export class Vocabulary {
+  readonly _charToIndex: {[key:string]: number};
+  readonly _indexToChar: {[key:number]: string};
+  readonly _blankIndex: number;
+
+  /**
+   * Creates an instance of Vocabulary by giving the char to index mapping table
+   * as well as the CTC blank index
+   * @param {{[key:string]: number}} charToIndex
+   * @param {number} blankIndex
+   * @memberof Vocabulary
+   */
+  constructor(charToIndex: {[key:string]: number}, blankIndex: number) {
+    this._charToIndex = {};
+    this._indexToChar = {};
+    this._blankIndex = blankIndex;
+    for( const [k, v] of Object.entries(charToIndex)) {
+      this._charToIndex[k] = v;
+      this._indexToChar[v] = k;
+    }
+  }
+  /**
+   * Get the char to index mapping table
+   * @readonly
+   * @memberof Vocabulary
+   */
+  get charToIndex() {
+    return this._charToIndex;
+  }
+
+  /**
+   * Get the index to char mapping table
+   * @readonly
+   * @memberof Vocabulary
+   */
+  get indexToChar() {
+    return this._indexToChar;
+  }
+
+  /**
+   * Get the CTC blank index
+   * @readonly
+   * @memberof Vocabulary
+   */
+  get blankIndex() {
+    return this._blankIndex;
+  }
+}
+
+// Vocabulary for English
+export const EN_VOCABULARY: Vocabulary =
+    new Vocabulary(EN_CHAR_MAP, EN_BLANK_INDEX);
 
 /**
  * Trie binary loader
  * @class TrieLoader
  */
 class TrieLoader {
-  _url: string;
-  _vocabSize: number;
+  readonly _url: string;
+  readonly _vocabSize: number;
   _trie: Trie;
   _rootNode: TrieNode;
 
@@ -24,8 +96,7 @@ class TrieLoader {
   }
 
   load() {
-    return fetch(this._url)
-        .then(resp => resp.arrayBuffer())
+    return fetchWrapper(this._url)
         .then((ab) => {
           this._trie = Trie.deserializeBinary(new Uint8Array(ab));
           if (this._trie.getMagic() !== 1414678853 ||
@@ -82,7 +153,31 @@ class NGram {
   }
 
   load() {
-    return Promise.resolve(this).then((ngram) => {
+    let rev: Promise<this>;
+    if (IS_NODE) {
+      rev = new Promise<this>((resolve) => {
+        global.Module = require('./module.js');
+        if (global.Module.runtimeInitialized === true) {
+          resolve(this);
+        } else {
+          Module.onRuntimeInitialized = () => {
+            resolve(this);
+          };
+        }
+      });
+    } else {
+      rev = new Promise((resolve) => {
+        if (Module.runtimeInitialized === true) {
+          resolve(this);
+        } else {
+          Module.onRuntimeInitialized = () => {
+            resolve(this);
+          };
+        }
+      });
+    }
+
+    return rev.then((ngram) => {
       return ngram._fetchNGram();
     }).then((ngram) => {
       ngram._nGramScore =
@@ -96,8 +191,6 @@ class NGram {
 
   _fetchNGram(): Promise<NGram> {
     return new Promise<NGram>((resolve, reject) => {
-      const fetchNGram =
-        Module.cwrap('FetchNGram', 'number', ['string', 'number']);
       const newFuncPtr = Module.addFunction((rev:number) => {
         if (rev === 0) {
           resolve(this);
@@ -105,7 +198,26 @@ class NGram {
           reject(undefined);
         }
       }, 'vi');
-      fetchNGram(this._path, newFuncPtr);
+
+      if (IS_NODE) {
+        const readNGram =
+            Module.cwrap('ReadNGram', 'number', ['string', 'string', 'number']);
+
+        const p = require('path');
+        const fs = require('fs');
+        if (this._path.toLowerCase().startsWith('http')) {
+          fetchWrapper(this._path).then((data) => {
+            fs.writeFileSync('__ngram.binary', data);
+            readNGram(__dirname, '__ngram.binary', newFuncPtr);
+          });
+        } else {
+          readNGram(p.dirname(this._path), p.basename(this._path), newFuncPtr);
+        }
+      } else {
+        const fetchNGram =
+            Module.cwrap('FetchNGram', 'number', ['string', 'number']);
+        fetchNGram(this._path, newFuncPtr);
+      }
     });
   }
 
@@ -216,7 +328,7 @@ class BeamState {
     }
   }
 
-  addChar(char: number, newTrie: TrieNode) {
+  addChar(char: number, newTrie: TrieNode, vocab: Vocabulary) {
     // space: a new word
     if (char === 0) {
       // another space after a new word
@@ -227,7 +339,8 @@ class BeamState {
         if (this._words.length === N_GRAM_SIZE) {
           this._words.shift();
         }
-        this._words.push(this._newChar.map(c => CHAR_MAP[c]).join(''));
+        this._words.push(
+            this._newChar.map(c => vocab.indexToChar[c]).join(''));
         this._newChar.length = 0;
       }
       this._trieNode = newTrie;
@@ -240,9 +353,9 @@ class BeamState {
     }
   }
 
-  nextState(char: number, newTrie: TrieNode) {
+  nextState(char: number, newTrie: TrieNode, vocab: Vocabulary) {
     const rev = new BeamState(this._trieNode, this);
-    rev.addChar(char, newTrie);
+    rev.addChar(char, newTrie, vocab);
     return rev;
   }
 
@@ -290,10 +403,10 @@ class BeamEntry {
   }
 
   // Convert char index sequence to a string
-  convertToStr(): string {
+  convertToStr(vocabulary: Vocabulary): string {
     if(this._string === undefined) {
       this._string = this.seq.map((index) => {
-        return CHAR_MAP.charAt(index);
+        return vocabulary.indexToChar[index];
       }).join('');
     }
     return this._string;
@@ -303,7 +416,7 @@ class BeamEntry {
     return this._state;
   }
 
-  copy(row: number[], scorer: BeamScorer) {
+  copy(row: number[], blank: number , scorer: BeamScorer) {
     if (this._last === -1) {
       // leading space case has no copy case
       return undefined;
@@ -317,13 +430,13 @@ class BeamEntry {
       // 2. abb + - ==> ab
       // 3. abb + b ==> ab
       // Therefore, use this.pTotal + blank for #1 and #2
-      rev.pBlank = this.pTotal + row[BLANK_INDEX];
+      rev.pBlank = this.pTotal + blank;
     } else {
       // if current sequence is acb, then copy() can be:
       // 1. acb + - ==> acb
       // 2. acb + b ==> acb
       // Therefore, use this.pNonBlank + blank for #1
-      rev.pBlank = this.pNonBlank + row[BLANK_INDEX];
+      rev.pBlank = this.pNonBlank + blank;
     }
     rev.pNonBlank = this.pNonBlank + row[this._last];
     rev.pTotal = logSumExp(rev.pNonBlank, rev.pBlank);
@@ -381,8 +494,8 @@ class BeamEntry {
   }
 
   // Dump string and prob
-  toString(): string {
-    return `${this.convertToStr()}, (${this.pTotal})`;
+  toString(vocabulary: Vocabulary): string {
+    return `${this.convertToStr(vocabulary)}, (${this.pTotal})`;
   }
 }
 
@@ -412,11 +525,11 @@ class BeamList {
    * @returns
    * @memberof BeamList
    */
-  add(beam: BeamEntry) {
+  add(beam: BeamEntry, vocab: Vocabulary) {
     if (beam === undefined) {
       return;
     }
-    const label = beam.convertToStr();
+    const label = beam.convertToStr(vocab);
     const existing = this._beams[label];
     if (existing) {
       // merge probability
@@ -489,7 +602,9 @@ export interface LanguageModelOption {
  */
 export class LanguageModel {
   _trieLoader: TrieLoader;
-  _vocabSize: number;
+  readonly _vocabulary: Vocabulary;
+  readonly _vocabSize: number;
+  readonly _blankIndex: number;
   _loaded: boolean;
   _trieWeight: number;
   _scorer: BeamScorer;
@@ -505,8 +620,10 @@ export class LanguageModel {
    * @param {number} vocabSize label number
    * @param {LanguageModelOption} option trie path, ngram path and etc.
    */
-  constructor(vocabSize: number, option?: LanguageModelOption) {
-    this._vocabSize = vocabSize;
+  constructor(vocabulary: Vocabulary, option?: LanguageModelOption) {
+    this._vocabulary = vocabulary;
+    this._vocabSize = Object.keys(vocabulary.charToIndex).length;
+    this._blankIndex = vocabulary.blankIndex;
     this._trieWeight = DEFAULT_TRIE_WEIGHT;
     this._trieRoot = undefined;
     
@@ -524,7 +641,7 @@ export class LanguageModel {
   }
 
   /**
-   * Load Trie
+   * Load Trie and N-Gram
    */
   load() {
     if (this._loaded || 
@@ -548,8 +665,8 @@ export class LanguageModel {
 
   /**
    * Run CTC decoding with language model
-   * @param logPropbs time serial log probabilities
-   * @param width beam width
+   * @param {number[][]} logPropbs time serial log probabilities
+   * @param {number} width beam width
    */
   beamSearch(logPropbs: number[][], width: number): BeamEntry[] {
     let beams: BeamEntry[] = [
@@ -557,25 +674,28 @@ export class LanguageModel {
 
     const nextState = (beam: BeamEntry, newLabel: number): BeamState => {
       return beam.state.nextState(
-          newLabel, this._trieRoot);
+          newLabel, this._trieRoot, this._vocabulary);
     };
 
     // Walk over each time step in sequence
-    logPropbs.forEach((row, tIndex) => {
+    logPropbs.forEach((row) => {
       const allCandidates:BeamList = new BeamList(width);
       // Go through each BeamEntry in the candidate list
       beams.forEach((beam) => {
         // calculate copy() case
         // first time slot has no copy case
         // the logic inside copy() return undefined
-        allCandidates.add(beam.copy(row, this._scorer));
+        allCandidates.add(
+            beam.copy(row, row[this._blankIndex], this._scorer),
+            this._vocabulary);
         // then run through all labels for the extend() case
         for(let cIndex = 0, len = row.length - 1; cIndex < len; cIndex++) {
           // extend cases
           allCandidates.add(
               beam.extend(
-                  cIndex, row[cIndex], row[BLANK_INDEX],
-                  this._scorer, nextState));
+                  cIndex, row[cIndex], row[this._blankIndex],
+                  this._scorer, nextState),
+              this._vocabulary);
         }
       });
 
@@ -593,5 +713,15 @@ export class LanguageModel {
    */
   get trieLoader() {
     return this._trieLoader;
+  }
+
+  /**
+   * Getter of the Vocabulary of this
+   * language model.
+   * @readonly
+   * @memberof LanguageModel
+   */
+  get vocabulary() {
+    return this._vocabulary;
   }
 }

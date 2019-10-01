@@ -61,5 +61,8 @@ typings/
 .next
 
 public/js/*.js
+public/model*
 **/*.npy
 dist/**
+kenlm-wasm/boost*
+kenlm-wasm/ken*
