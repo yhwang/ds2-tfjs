@@ -82,9 +82,8 @@ Well done! You successfully compile KenLM to WebAssembly bitcode.
 ### Build WebAssembly module to use KenLM
 Then you can build the WebAssembly module to use KenLM.
 The code is under `src/wasm` directory. The `emcc` compiler generates
-3 output files:
+2 output files:
 - module.js
-- module.html
 - module.wasm
 
 We need .js and .wasm files. Here is the command to build the module:
@@ -93,5 +92,5 @@ We need .js and .wasm files. Here is the command to build the module:
 cd ../src/wasm
 
 # Use emcc compile to compile the code
-emcc module.cc -o module.html -I../../kenlm-wasm/kenlm/include -I../../kenlm-wasm/boost_1_71_0/build/include -L../../kenlm-wasm/boost_1_71_0/build/lib/ -L../../kenlm-wasm/kenlm/build/lib -L${HOME}/.emscripten_cache/asmjs -lboost -lkenlm -lkenlm_util -lz -s EXPORTED_FUNCTIONS='["_main", "_NGramScore", "_FetchNGram"]' -s EXTRA_EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "stringToUTF8", "addFunction"]' -s ALLOW_MEMORY_GROWTH=1 -s RESERVED_FUNCTION_POINTERS=20 -s FETCH=1 -DKENLM_MAX_ORDER=6 -O3
+emcc module.cc -o module.js -I../../kenlm-wasm/kenlm/include -I../../kenlm-wasm/boost_1_71_0/build/include -L../../kenlm-wasm/boost_1_71_0/build/lib/ -L../../kenlm-wasm/kenlm/build/lib -L${HOME}/.emscripten_cache/asmjs -lboost -lkenlm -lkenlm_util -lz -s EXPORTED_FUNCTIONS='["_main", "_NGramScore", "_FetchNGram", "_ReadNGram"]' -s EXTRA_EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "stringToUTF8", "addFunction"]' -s ALLOW_MEMORY_GROWTH=1 -s RESERVED_FUNCTION_POINTERS=20 -s FETCH=1 -DKENLM_MAX_ORDER=6 -O3
 ```

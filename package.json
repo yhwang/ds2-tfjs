@@ -8,22 +8,27 @@
   },
   "dependencies": {
     "@tensorflow/tfjs": "^1.1.2",
+    "@tensorflow/tfjs-node": "^1.2.9",
     "express": "^4.16.1",
-    "google-protobuf": "^3.9.1"
+    "google-protobuf": "^3.9.1",
+    "node-fetch": "^2.6.0",
+    "node-wav": "0.0.2"
   },
   "devDependencies": {
+    "@types/emscripten": "^1.38.0",
     "@types/express": "^4.16.1",
     "@types/google-protobuf": "^3.7.1",
+    "@types/node-fetch": "^2.5.2",
     "concurrently": "^4.1.0",
     "nodemon": "^1.19.1",
     "rollup": "^1.12.3",
     "rollup-plugin-commonjs": "^10.0.2",
     "rollup-plugin-node-resolve": "^5.0.0",
     "rollup-plugin-typescript2": "^0.21.1",
+    "ts-node": "^8.4.1",
     "ts-protoc-gen": "^0.10.0",
     "tslint": "^5.17.0",
-    "typescript": "~3.5.3",
-    "@types/emscripten": "^1.38.0"
+    "typescript": "~3.5.3"
   },
   "scripts": {
     "build": "tsc && rollup -c",

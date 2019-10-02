@@ -1,4 +1,4 @@
-import { DeepSpeech, measureElapsedTime, LanguageModel }
+import { DeepSpeech, measureElapsedTime, LanguageModel, EN_VOCABULARY }
     from '../lib/index';
 
 declare global {
@@ -16,8 +16,6 @@ declare global {
   }
 }
 
-const VOCAB_SIZE = 28;
-
 class UI {
   audioSelector: HTMLInputElement;
   player: HTMLAudioElement;
@@ -34,11 +32,11 @@ class UI {
   microphoneSlashIcon: HTMLElement;
 
   constructor() {
-    this.audioSelector = 
+    this.audioSelector =
         document.getElementById('audio-file') as HTMLInputElement;
     this.player = document.getElementById('player') as HTMLAudioElement;
     this.status = document.getElementById('status') as HTMLLabelElement;
-    this.transcription = 
+    this.transcription =
         document.getElementById('transcription') as HTMLLabelElement;
     this.playerDiv = document.getElementById('playerDiv') as HTMLDivElement;
     this.transcribeBtn =
@@ -102,7 +100,7 @@ class UI {
 }
 
 const languageModel =
-    new LanguageModel(VOCAB_SIZE,
+    new LanguageModel(EN_VOCABULARY,
         {
           triePath: '/trie.binary',
           ngram: '/3-gram.binary'
@@ -120,23 +118,13 @@ async function pageLoaded() {
           ui.mediaStream = stream;
         });
   }
-  const initialized = () => {
-    measureElapsedTime('loading model', () => {
-      return loadModel();
-    }).then(() => {
-      // after loading the model, enable the transcribe button
-      ui.enable(ui.audioSelector);
-      ui.enable(ui.recordBtn);
-    });
-  };
-
-  if (Module.runtimeInitialized === true) {
-    initialized();
-  } else {
-    Module.onRuntimeInitialized = () => {
-      initialized();
-    };
-  }
+  measureElapsedTime('loading model', () => {
+    return loadModel();
+  }).then(() => {
+    // after loading the model, enable the transcribe button
+    ui.enable(ui.audioSelector);
+    ui.enable(ui.recordBtn);
+  });
 }
 
 // Load the model and update UI
@@ -160,6 +148,7 @@ async function transcribe(element: HTMLInputElement) {
   ui.addSpinner(element, 'Transcribe...');
   await measureElapsedTime('transcribe', async () => {
     const transcription = await ds.transcribeFile(ui.audioSelector.files[0],
+        {beamWidth: 64},
         (bin:ArrayBuffer) => showAudioControl(bin),
         (sampleRate, channelNum, length) => {
           updateStatus(`sample rate:${sampleRate}, ` +
@@ -236,6 +225,7 @@ async function transcribeRecording(recording: Blob) {
   ui.addSpinner(ui.transcribeBtn, 'Transcribe...');
   await measureElapsedTime('transcribe', async () => {
     const transcription = await ds.transcribeFile(recording,
+        {beamWidth: 64},
         () => {},
         (sampleRate, channelNum, length) => {
           updateStatus(`sample rate:${sampleRate}, ` +
