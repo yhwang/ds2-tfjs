@@ -84,6 +84,12 @@ export class DeepSpeech {
    * Read the File and run data preprocessing (stft),
    * model inference, CTC greedy decoding and return
    * the transcription
+   * @param {(string|File|Blob)} file
+   * @param {TranscribeOption} option
+   * @param {(data: ArrayBuffer) => void} [cb]
+   * @param {StatusUpdateCallback} [statusUpdate]
+   * @returns
+   * @memberof DeepSpeech
    */
   async transcribeFile(file: string|File|Blob,
       option: TranscribeOption,
@@ -91,8 +97,8 @@ export class DeepSpeech {
       statusUpdate?: StatusUpdateCallback) {
     // using the sampling rate while training
     const audioProcessor = new AudioProcessor(SAMPLE_RATE);
-    let feature: tf.Tensor;
     let raw: ArrayBuffer;
+    let rawWav: Float32Array;
 
     await measureElapsedTime('read file to ArrayBuffer', async () => {
       raw = await audioProcessor.read(file);
@@ -101,8 +107,22 @@ export class DeepSpeech {
       cb(raw);
     }
     await measureElapsedTime('wav decode and stft', async () => {
-      const rawWav = await audioProcessor.decode(raw, statusUpdate);
-      feature = audioProcessor.stft(rawWav);
+      rawWav = await audioProcessor.decode(raw, statusUpdate);
+    });
+    return this.transcribeWav(rawWav, option);
+  }
+
+  /**
+   * Perform transcription against the decoded raw wav binary
+   * @param {Float32Array} wav The decoded raw wav binary
+   * @param {TranscribeOption} option specify beam width
+   * @returns the transcription
+   * @memberof DeepSpeech
+   */
+  async transcribeWav(wav: Float32Array, option: TranscribeOption) {
+    let feature: tf.Tensor;
+    await measureElapsedTime('perform stft', () => {
+      feature = AudioProcessor.stft(wav);
     });
     const featureBatch = feature.expandDims(0);
     const transcription = this._transcribe(featureBatch, option.beamWidth);
@@ -228,7 +248,7 @@ class AudioProcessor {
    * https://en.wikipedia.org/wiki/Short-time_Fourier_transform.
    * @param buff 
    */
-  stft(buff: Float32Array) {
+  static stft(buff: Float32Array) {
     const windowSize = SAMPLE_RATE * 0.001 * WINDOW_SIZE;
     const strideSize = SAMPLE_RATE * 0.001 * STRIDE_SIZE;
     const trancate = (buff.length - windowSize ) % strideSize;
@@ -265,7 +285,7 @@ class AudioProcessor {
    * @param window 
    * @param stride 
    */
-  _getStrideBuff(buff: Float32Array, window: number, stride: number)
+  static _getStrideBuff(buff: Float32Array, window: number, stride: number)
       : Float32Array {
     const shape = [ window, (buff.length - window)/stride + 1];
     const rev = new Float32Array(shape[0] * shape[1]);
