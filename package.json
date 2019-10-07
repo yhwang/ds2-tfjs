@@ -19,24 +19,27 @@
     "@types/express": "^4.16.1",
     "@types/google-protobuf": "^3.7.1",
     "@types/node-fetch": "^2.5.2",
+    "@types/shelljs": "^0.8.5",
     "concurrently": "^4.1.0",
     "nodemon": "^1.19.1",
     "rollup": "^1.12.3",
     "rollup-plugin-commonjs": "^10.0.2",
     "rollup-plugin-node-resolve": "^5.0.0",
     "rollup-plugin-typescript2": "^0.21.1",
+    "shelljs": "^0.8.3",
     "ts-node": "^8.4.1",
     "ts-protoc-gen": "^0.10.0",
     "tslint": "^5.17.0",
     "typescript": "~3.5.3"
   },
   "scripts": {
-    "build": "tsc && rollup -c",
+    "build": "tsc && rollup -c && npm run copy",
     "start": "node dist/server/index.js",
     "watch:server": "tsc -w",
     "watch:js": "rollup --config rollup.config.js --watch",
     "dev": "concurrently --names \"serverjs,clientjs,server\" -c \"bgBlue.bold,bgMagenta.bold\" npm:watch:server npm:watch:js \"nodemon dist/server/index.js\"",
-    "lint": "tslint -p tslint-tsconfig.json -c tslint.json src/**/*.ts"
+    "lint": "tslint -p tslint-tsconfig.json -c tslint.json src/**/*.ts",
+    "copy": "ts-node scripts/copy.ts"
   },
   "repository": {
     "type": "git",
