@@ -1,5 +1,5 @@
-import * as shell from 'shelljs';
-import * as path from 'path';
+const shell = require('shelljs');
+const path = require('path');
 
 // copy trie_pb.js to dist
 shell.cp(
